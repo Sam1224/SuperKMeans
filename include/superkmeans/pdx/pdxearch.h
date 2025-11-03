@@ -599,24 +599,23 @@ class PDXearch {
         }
         // PDXearch core
         current_dimension_idx = 0;
-        DATA_TYPE* prepared_query = query;
         for (size_t cluster_idx = 0; cluster_idx < clusters_to_visit; ++cluster_idx) {
             current_cluster = clusters_indices[cluster_idx];
             CLUSTER_TYPE& cluster = pdx_data.clusters[current_cluster];
             if (best_k.size() < k) {
                 // We cannot prune until we fill the heap
                 Start(
-                    prepared_query, cluster.data, cluster.num_embeddings, k, cluster.indices,
+                    query, cluster.data, cluster.num_embeddings, k, cluster.indices,
                     pruning_positions, pruning_distances, best_k
                 );
                 continue;
             }
             Warmup(
-                prepared_query, cluster.data, cluster.num_embeddings, k, selectivity_threshold,
+                query, cluster.data, cluster.num_embeddings, k, selectivity_threshold,
                 pruning_positions, pruning_distances, pruning_threshold, best_k
             );
             Prune(
-                prepared_query, cluster.data, cluster.num_embeddings, k, pruning_positions,
+                query, cluster.data, cluster.num_embeddings, k, pruning_positions,
                 pruning_distances, pruning_threshold, best_k
             );
             if (n_vectors_not_pruned) {

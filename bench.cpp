@@ -20,7 +20,7 @@ std::vector<float> make_blobs(
     std::mt19937 gen(random_state);
 
     // Random cluster centers
-    std::normal_distribution<float> center_dist(0.0f, 10.0f);
+    std::normal_distribution<float> center_dist(0.0f, 1.0f);
     std::vector<std::vector<float>> centers(n_centers, std::vector<float>(n_features));
     for (auto& c : centers)
         for (auto& x : c)
@@ -111,15 +111,17 @@ int main(int argc, char* argv[]) {
     }
 
     // SKMeans
-    n = 131072;
-    d = 128;
-    size_t n_clusters = 512;
+    n = 262144;
+    d = 1024;
+    size_t n_clusters = 1024;
     uint32_t n_iters = 1;
     float sampling_fraction = 1.0;
     std::vector<skmeans::skmeans_value_t<skmeans::f32>> data = make_blobs(n, d, n_clusters);
 
     auto kmeans_state = skmeans::SuperKMeans<skmeans::f32, skmeans::l2>(n_clusters, d, n_iters, sampling_fraction, true);
-    auto centroids = kmeans_state.Train(data.data(), n);
+    ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("SKMeans", [&]() {
+        auto centroids = kmeans_state.Train(data.data(), n);
+    });
 
 
 }

@@ -94,7 +94,9 @@ class SuperKMeans {
             std::cout << "Sampling data..." << std::endl;
         }
         const auto n_samples = GetNVectorsToSample(n);
-        auto data_to_cluster = SampleVectors(data_p, n, n_samples);
+        std::vector<vector_value_t> data_samples_buffer;
+        auto data_to_cluster = SampleVectors(data_p, data_samples_buffer, n, n_samples);
+        std::cout << "Sampling data result: " << data_to_cluster[0] << std::endl;
 
         if (verbose) {
             std::cout << "Clustering..." << std::endl;
@@ -110,11 +112,11 @@ class SuperKMeans {
             }
             if (verbose)
                 std::cout << "Iteration " << i + 1 << "/" << _iters
-                          << " | Objective: " << std::endl;
+                          << " | Objective: " << cost << std::endl;
         }
         //! I don't need proper assignments until the last iteration
         // TODO(@lkuffo, critical): Create proper assignments
-        Assign(data, centroids_pdx_wrapper, n);
+        // Assign(data, centroids_pdx_wrapper, n);
 
         _trained = true;
         return _centroids;
@@ -152,11 +154,14 @@ class SuperKMeans {
         auto data_p = data;
         // TODO(@lkuffo, high): Remove this out
         // auto [horizontal_d, vertical_d] = PDXLayout<q, alpha>::GetDimensionSplit(_d);
+        cost = 0.0;
         for (size_t i = 0; i < n; ++i) {
             // PDXearch per vector
-            std::vector<knn_candidate_t> assignment = pdx_centroids.searcher->Search(data_p, 1);
-            auto assignment_idx = assignment[0].index;
+            std::vector<knn_candidate_t> assignment = pdx_centroids.searcher->Top1Search(data_p);
+            auto [assignment_idx, assignment_distance] = assignment[0];
             _cluster_sizes[assignment_idx] += 1;
+            // TODO(@lkuffo, med): Only if verbose... but I dont want to touch this critical loop
+            cost += assignment_distance;
             // std::cout << "Assigned to: " << assignment_idx << std::endl;
             // TODO(@lkuffo, med): Is it better to update directly on PDX or keep as RowMaj+PDXify
             UpdateCentroid(data_p, assignment_idx);
@@ -177,7 +182,7 @@ class SuperKMeans {
             // PDXearch per vector
             std::vector<knn_candidate_t> assignment = pdx_centroids.searcher->Search(data_p, 1);
             auto assignment_idx = assignment[0].index;
-            std::cout << assignment_idx << "," << assignment[0].distance << std::endl;
+            //std::cout << assignment_idx << "," << assignment[0].distance << std::endl;
             _assignments[i] = assignment_idx;
             data_p += _d;
         }
@@ -199,6 +204,8 @@ class SuperKMeans {
         auto _tmp_centroids_p = _tmp_centroids.data();
         for (size_t ci = 0; ci < _n_clusters; ci++) {
             if (_cluster_sizes[ci] == 0) { /* need to redefine a centroid */
+                //nsplit += 1;
+                //continue;
                 size_t cj;
                 for (cj = 0; true; cj = (cj + 1) % _n_clusters) {
                     /* probability to pick this cluster for split */
@@ -227,9 +234,9 @@ class SuperKMeans {
                 /* assume even split of the cluster */
                 _cluster_sizes[ci] = _cluster_sizes[cj] / 2;
                 _cluster_sizes[cj] -= _cluster_sizes[ci];
-                std::cout << "Swap" << std::endl;
-                std::cout << ci << ", " << _cluster_sizes[ci] << std::endl;
-                std::cout << cj << ", " << _cluster_sizes[cj] << std::endl;
+                //std::cout << "Swap" << std::endl;
+                //std::cout << ci << ", " << _cluster_sizes[ci] << std::endl;
+                //std::cout << cj << ", " << _cluster_sizes[cj] << std::endl;
                 nsplit++;
             }
         }
@@ -247,11 +254,13 @@ class SuperKMeans {
 
     void ConsolidateCentroids(const size_t n) { // TODO(@lkuffo, med): Horrible parameter depth
         for (size_t i = 0; i < _n_clusters; ++i) {
+            // std::cout << "Cluster " << i << ": " << _cluster_sizes[i] << std::endl;
             _reciprocal_cluster_sizes[i] = 1.0 / _cluster_sizes[i];
         }
         auto _tmp_centroids_p = _tmp_centroids.data();
         for (size_t i = 0; i < _n_clusters; ++i) {
             if (_cluster_sizes[i] == 0) {
+                _tmp_centroids_p += _d;
                 continue;
             }
             // TODO(@lkuffo, low): Skip clusters with 0 size
@@ -289,6 +298,8 @@ class SuperKMeans {
     // Equidistant sampling similar to DuckDB's
     PDXLayout<q, alpha, Pruner>
     GenerateCentroids(const vector_value_t* SKM_RESTRICT data, const size_t n) {
+        //std::cout << "vector[0][0]: " << data[0] << std::endl;
+        //std::cout << "vector[0][1]: " << data[1] << std::endl;
         const auto jumps = static_cast<size_t>(std::floor(1.0 * n / _n_clusters));
         auto tmp_centroids_p = _tmp_centroids.data();
         for (size_t i = 0; i < n; i += jumps) {
@@ -297,15 +308,21 @@ class SuperKMeans {
             memcpy((void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d);
             tmp_centroids_p += _d;
         }
+        //std::cout << "sample[0][0]: " << _tmp_centroids[0] << std::endl;
+        //std::cout << "sample[0][1]: " << _tmp_centroids[1] << std::endl;
         // We populate the _centroids buffer with the centroids in the PDX layout
         if constexpr (std::is_same_v<Pruner, ADSamplingPruner<q>>) {
             // TODO(@lkuffo, high): Implement a template bool for pruning or not, this would depend
             //    on the dimensionality of the data
             std::vector<centroid_value_t> rotated_centroids(_n_clusters * _d);
             _pruner->Rotate(_tmp_centroids.data(), rotated_centroids.data(), _n_clusters);
+            //std::cout << "rotated[0][0]: " << rotated_centroids[0] << std::endl;
+            //std::cout << "rotated[0][1]: " << rotated_centroids[1] << std::endl;
             PDXLayout<q, alpha, Pruner>::template PDXify<false>(
                 rotated_centroids.data(), _centroids.data(), _n_clusters, _d
             );
+            //std::cout << "rotated_pdx[0][0]: " << _centroids[0] << std::endl;
+            //std::cout << "rotated_pdx[0][1]: " << _centroids[64] << std::endl;
         } else {
             PDXLayout<q, alpha, Pruner>::template PDXify<true>(
                 tmp_centroids_p.data(), _centroids.data(), _n_clusters, _d
@@ -341,22 +358,25 @@ class SuperKMeans {
 
     // Equidistant sampling similar to DuckDB's
     vector_value_t* SampleVectors(
-        const vector_value_t* SKM_RESTRICT data, const size_t n, const size_t n_sampled
+        const vector_value_t* SKM_RESTRICT data,
+        std::vector<vector_value_t>& data_samples_buffer,
+        const size_t n, const size_t n_sampled
     ) const {
-        const vector_value_t* tmp_data_buffer_p;
+        const vector_value_t* tmp_data_buffer_p = nullptr;
+        std::vector<vector_value_t> samples_tmp;
         // TODO(@lkuffo, medium): If DP, normalize here while taking the samples
         if (n_sampled < n) {
-            std::vector<vector_value_t> tmp_data_buffer(n_sampled * _d);
-            tmp_data_buffer_p = tmp_data_buffer.data();
+            samples_tmp.resize(n_sampled * _d);
             const auto jumps = static_cast<size_t>(std::floor((1.0 * n) / n_sampled));
             auto tmp_data_p = data;
             for (size_t i = 0; i < n_sampled; i += jumps) {
                 memcpy(
-                    (void*) (tmp_data_buffer_p + (_d * i)), (void*) (data + i),
+                    (void*) (samples_tmp.data() + (_d * i)), (void*) (data + i),
                     sizeof(vector_value_t) * _d
                 );
             }
-        } else {                      // Flat
+            tmp_data_buffer_p = samples_tmp.data();
+        } else {
             tmp_data_buffer_p = data; // Zero-copy
         }
 
@@ -364,9 +384,10 @@ class SuperKMeans {
         if constexpr (std::is_same_v<Pruner, ADSamplingPruner<q>>) {
             std::cout << "Rotating" << "\n";
             // TODO(@lkuffo, high): Try to remove temporary buffer for rotating the vectors (sad)
-            std::vector<vector_value_t> rotated_data(n_sampled * _d);
-            _pruner->Rotate(tmp_data_buffer_p, rotated_data.data(), n_sampled);
-            return rotated_data.data();
+            data_samples_buffer.resize(n_sampled * _d);
+            _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), n_sampled);
+            //std::cout << "Rotator result (" <<  n_sampled << "): " << data_samples_buffer[0] << "\n";
+            return data_samples_buffer.data();
         } else {                      // Flat
             return tmp_data_buffer_p; // Zero-copy
         }
@@ -387,6 +408,7 @@ class SuperKMeans {
     const size_t _d;
     bool _trained;
     bool verbose;
+    float cost;
 };
 } // namespace skmeans
 
