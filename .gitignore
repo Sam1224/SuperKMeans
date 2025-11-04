@@ -75,3 +75,7 @@ __pycache__/
 
 # Others
 Testing
+
+venv
+
+*.bin

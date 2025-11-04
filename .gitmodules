@@ -1,3 +1,6 @@
 [submodule "extern/Eigen"]
 	path = extern/Eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "extern/lorann"]
+	path = extern/lorann
+	url = https://github.com/ejaasaari/lorann.git

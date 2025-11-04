@@ -155,10 +155,12 @@ class SuperKMeans {
         // TODO(@lkuffo, high): Remove this out
         // auto [horizontal_d, vertical_d] = PDXLayout<q, alpha>::GetDimensionSplit(_d);
         cost = 0.0;
+        float tt = 0.0;
         for (size_t i = 0; i < n; ++i) {
             // PDXearch per vector
             std::vector<knn_candidate_t> assignment = pdx_centroids.searcher->Top1Search(data_p);
             auto [assignment_idx, assignment_distance] = assignment[0];
+            tt += pdx_centroids.searcher->end_to_end_clock.accum_time;
             _cluster_sizes[assignment_idx] += 1;
             // TODO(@lkuffo, med): Only if verbose... but I dont want to touch this critical loop
             cost += assignment_distance;
@@ -167,6 +169,9 @@ class SuperKMeans {
             UpdateCentroid(data_p, assignment_idx);
             data_p += _d;
         }
+        std::cout << "Total time for search (ns): " << tt << std::endl;
+        std::cout << "Total time for search (ms): " << tt / 1000000 << std::endl;
+        std::cout << "Time per query (ms): " << (tt / 1000000) / n << std::endl;
         ConsolidateCentroids(n); // TODO(@lkuffo, med): Horrible parameter depth
     }
 

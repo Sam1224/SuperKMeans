@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
+set(Python3_FIND_STRATEGY NEVER)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS -Wall)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native")
@@ -13,6 +14,8 @@ include(CTest)
 # CMAKE_SOURCE_DIR: ----------------------------------------------------------------------------------------------------
 add_compile_definitions(CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-include_directories(include extern)
+include_directories(include extern extern/lorann/lorann)
 
 add_executable(bench.out bench.cpp)
+add_executable(bench_kmeans.out bench_kmeans.cpp)
+add_executable(bench_kmeans_lorann.out bench_kmeans_lorann.cpp)
