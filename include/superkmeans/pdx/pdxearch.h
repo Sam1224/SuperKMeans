@@ -35,7 +35,7 @@ class PDXearch {
     Pruner pruner;
     INDEX_TYPE& pdx_data;
 
-    PDXearch(INDEX_TYPE& data_index, Pruner& pruner) : pdx_data(data_index), pruner(pruner) {
+    PDXearch(INDEX_TYPE& data_index, Pruner& pruner) : pruner(pruner), pdx_data(data_index) {
         indices_dimensions.resize(pdx_data.num_dimensions);
         std::iota(indices_dimensions.begin(), indices_dimensions.end(), 0);
         clusters_indices.resize(pdx_data.num_clusters);
@@ -440,7 +440,7 @@ class PDXearch {
         thread_local size_t current_cluster = 0;
         thread_local uint32_t current_dimension_idx = 0;
         thread_local size_t n_vectors_not_pruned = 0;
-        best_k_centroids.empty();
+        best_k_centroids = {};
         current_cluster = 0;
         current_dimension_idx = 0;
         n_vectors_not_pruned = 0;
@@ -519,7 +519,7 @@ class PDXearch {
         thread_local size_t n_vectors_not_pruned = 0;
         thread_local uint32_t current_dimension_idx = 0;
         pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
-        best_k.empty();
+        best_k = {};
         current_dimension_idx = 0;
         n_vectors_not_pruned = 0;
         current_cluster = 0;
@@ -590,7 +590,7 @@ class PDXearch {
 
     std::vector<KNNCandidate_t> Top1Search(const float* __restrict query) {
         alignas(64) thread_local uint32_t pruning_positions[PDX_VECTOR_SIZE];
-        alignas(64) thread_local DISTANCES_TYPE distances[PDX_VECTOR_SIZE];
+        // alignas(64) thread_local DISTANCES_TYPE distances[PDX_VECTOR_SIZE];
         alignas(64) thread_local DISTANCES_TYPE pruning_distances[PDX_VECTOR_SIZE];
         thread_local DISTANCES_TYPE pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
         thread_local auto best_k =
@@ -599,7 +599,7 @@ class PDXearch {
         thread_local uint32_t current_dimension_idx = 0;
         thread_local size_t current_cluster = 0;
         pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
-        best_k.empty();
+        best_k = {};
         current_dimension_idx = 0;
         n_vectors_not_pruned = 0;
         current_cluster = 0;
@@ -658,13 +658,92 @@ class PDXearch {
         return result;
     }
 
-    // Top1SearchWithThreshold(const float* __restrict query, float pruning_tresh, uint32_t assigned_point)
-    //      pruning_tresh is the distance from the query to its previously assigned centroid id (but already recomputed)
-    //      assigned_point is the id of this point
+    // Top1SearchWithThreshold(const float* __restrict query, float pruning_tresh, uint32_t
+    // assigned_point)
+    //      pruning_tresh is the distance from the query to its previously assigned centroid id (but
+    //      already recomputed) assigned_point is the id of this point
     // Initialize the pruning_threshold to pruning_treshold
     // Initialize heap with one value, the assigned_point and the pruning_threshold as distance
     // Avoid Start, go directly into the WARMUP/PRUNE cycle
+    // MEASURE GAINS!!
+    std::vector<KNNCandidate_t> Top1SearchWithThreshold(
+        const float* __restrict query, const float prev_pruning_threshold, const uint32_t prev_top_1
+    ) {
+        alignas(64) thread_local uint32_t pruning_positions[PDX_VECTOR_SIZE];
+        // alignas(64) thread_local DISTANCES_TYPE distances[PDX_VECTOR_SIZE];
+        alignas(64) thread_local DISTANCES_TYPE pruning_distances[PDX_VECTOR_SIZE];
+        DISTANCES_TYPE pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
+        thread_local auto best_k =
+            std::priority_queue<KNNCandidate_t, std::vector<KNNCandidate_t>, VectorComparator_t>{};
+        thread_local size_t n_vectors_not_pruned = 0;
+        thread_local uint32_t current_dimension_idx = 0;
+        thread_local size_t current_cluster = 0;
+        best_k = {};
 
+        // Setup previous top1
+        pruning_threshold = prev_pruning_threshold;
+        auto top_embedding = KNNCandidate<q>{};
+        top_embedding.index = prev_top_1;
+        top_embedding.distance = prev_pruning_threshold;
+        best_k.push(top_embedding);
+
+        current_dimension_idx = 0;
+        n_vectors_not_pruned = 0;
+        current_cluster = 0;
+#ifdef BENCHMARK_TIME
+        this->ResetClocks();
+        this->end_to_end_clock.Tic();
+#endif
+        constexpr uint32_t k = 1;
+        size_t clusters_to_visit = pdx_data.num_clusters;
+        if constexpr (std::is_same_v<Index, IndexPDXIVF2<q>>) {
+            // Multilevel access
+            GetL0ClustersAccessOrderPDX(query);
+            GetL1ClustersAccessOrderPDX(query, clusters_to_visit);
+        } else {
+            if (pdx_data.is_ivf) {
+                GetClustersAccessOrderIVF(query, pdx_data, clusters_to_visit, clusters_indices);
+            } else {
+                // If there is no index, we just access the clusters in order
+                GetClustersAccessOrderRandom();
+            }
+        }
+        // PDXearch core
+        current_dimension_idx = 0;
+        for (size_t cluster_idx = 0; cluster_idx < clusters_to_visit; ++cluster_idx) {
+            current_cluster = clusters_indices[cluster_idx];
+            CLUSTER_TYPE& cluster = pdx_data.clusters[current_cluster];
+            if (best_k.size() < k) {
+                // We cannot prune until we fill the heap
+                Start(
+                    query, cluster.data, cluster.num_embeddings, k, cluster.indices,
+                    pruning_positions, pruning_distances, best_k
+                );
+                continue;
+            }
+            Warmup(
+                query, cluster.data, cluster.num_embeddings, k, selectivity_threshold,
+                pruning_positions, pruning_distances, pruning_threshold, best_k,
+                current_dimension_idx
+            );
+            Prune(
+                query, cluster.data, cluster.num_embeddings, k, pruning_positions,
+                pruning_distances, pruning_threshold, best_k, n_vectors_not_pruned,
+                current_dimension_idx
+            );
+            if (n_vectors_not_pruned) {
+                MergeIntoHeap<true>(
+                    cluster.indices, n_vectors_not_pruned, k, pruning_positions, pruning_distances,
+                    nullptr, best_k
+                );
+            }
+        }
+        std::vector<KNNCandidate_t> result = BuildResultSet(k, best_k);
+#ifdef BENCHMARK_TIME
+        this->end_to_end_clock.Toc();
+#endif
+        return result;
+    }
 };
 
 } // namespace skmeans

@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     const int n = 262144;
     const int d = 1024;
     int n_clusters = 1024;
-    int n_iters = 25;
+    int n_iters = 5;
     float sampling_fraction = 1.0;
 
     std::vector<float> data(n * d);
@@ -45,6 +45,7 @@ int main(int argc, char* argv[]) {
     ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("FAISS KMeans", [&]() {
         clus.train(n, data.data(), index);
     });
+    std::cout << "Obj:" << clus.iteration_stats[n_iters - 1].obj << std::endl;
     // Print centroids
     std::cout << "Centroids:" << std::endl;
 }

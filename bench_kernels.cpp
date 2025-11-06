@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Vertical D: " << vertical_d << std::endl;
     std::cout << "Horizontal D: " << horizontal_d << std::endl;
     std::cout << "Eigen ISA: " << Eigen::SimdInstructionSetsInUse() << std::endl;
-    std::cout << "Eigen # threads: " << Eigen::nbThreads() << " (note: it will always be 1 if BLAS is enabled" << std::endl;
+    std::cout << "Eigen # threads: " << Eigen::nbThreads() << " (note: it will always be 1 if BLAS is enabled)" << std::endl;
 
     //
     // Eigen

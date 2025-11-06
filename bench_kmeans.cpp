@@ -23,13 +23,13 @@ int main(int argc, char* argv[]) {
     const size_t n = 262144;
     const size_t d = 1024;
     size_t n_clusters = 1024;
-    uint32_t n_iters = 25;
+    uint32_t n_iters = 5;
     float sampling_fraction = 1.0;
 
     constexpr size_t THREADS = 14;
     omp_set_num_threads(THREADS);
     std::cout << "Eigen # threads: " << Eigen::nbThreads()
-              << " (note: it will always be 1 if BLAS is enabled" << std::endl;
+              << " (note: it will always be 1 if BLAS is enabled)" << std::endl;
 
     std::vector<skmeans::skmeans_value_t<skmeans::f32>> data(n * d);
     std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_random.bin", std::ios::binary);
