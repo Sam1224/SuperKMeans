@@ -19,11 +19,11 @@ int main(int argc, char* argv[]) {
     const int n = 262144;
     const int d = 1024;
     int n_clusters = 1024;
-    int n_iters = 20;
+    int n_iters = 10;
     float sampling_fraction = 1.0;
 
     std::vector<float> data(n * d);
-    std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_random.bin", std::ios::binary);
+    std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_mxbai.bin", std::ios::binary);
     if (!file) {
         std::cerr << "Failed to open " << std::endl;
         return 1;

@@ -896,8 +896,8 @@ class PDXearch {
             }
         }
         // if (vector_id % 10000 == 0) {
-        //     std::cout << "Vector " << vector_id << " | " << "Pruned At Avg.: " << (1.0 *
-        //     pruned_at) / clusters_to_visit << std::endl;
+        //     std::cout << "Vector " << vector_id << " | "
+        //               << "Pruned At Avg.: " << (1.0 * pruned_at) / clusters_to_visit << std::endl;
         // }
         std::vector<KNNCandidate_t> result = BuildResultSet(k, best_k);
 #ifdef BENCHMARK_TIME
@@ -975,8 +975,9 @@ class PDXearch {
             }
         }
         // if (vector_id % 10000 == 0) {
-        //     std::cout << "Vector " << vector_id << " | " << "Pruned At Avg.: " << (1.0 *
-        //     pruned_at) / clusters_to_visit << std::endl;
+        //     std::cout << "Vector " << vector_id << " | "
+        //               << "Pruned At Avg.: " << (1.0 * pruned_at) / clusters_to_visit <<
+        //               std::endl;
         // }
         std::vector<KNNCandidate_t> result = BuildResultSet(k, best_k);
 #ifdef BENCHMARK_TIME

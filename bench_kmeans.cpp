@@ -10,6 +10,7 @@
 #include <random>
 #include <vector>
 
+#include "superkmeans/common.h"
 #include "superkmeans/nanobench.h"
 #include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/pruners/adsampling.hpp"
@@ -23,7 +24,7 @@ int main(int argc, char* argv[]) {
     const size_t n = 262144;
     const size_t d = 1024;
     size_t n_clusters = 1024;
-    uint32_t n_iters = 20;
+    uint32_t n_iters = 10;
     float sampling_fraction = 1.0;
 
     constexpr size_t THREADS = 14;
@@ -32,7 +33,7 @@ int main(int argc, char* argv[]) {
               << " (note: it will always be 1 if BLAS is enabled)" << std::endl;
 
     std::vector<skmeans::skmeans_value_t<skmeans::f32>> data(n * d);
-    std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_random.bin", std::ios::binary);
+    std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_mxbai.bin", std::ios::binary);
     if (!file) {
         std::cerr << "Failed to open " << std::endl;
         return 1;
@@ -43,7 +44,11 @@ int main(int argc, char* argv[]) {
     auto kmeans_state = skmeans::SuperKMeans<skmeans::f32, skmeans::l2>(
         n_clusters, d, n_iters, sampling_fraction, true, THREADS
     );
+    skmeans::TicToc m;
+    m.Tic();
     ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("SKMeans", [&]() {
         auto centroids = kmeans_state.Train(data.data(), n);
     });
+    m.Toc();
+    std::cout << "TOTAL (s) " << m.accum_time / 1000000000.0 << std::endl;
 }

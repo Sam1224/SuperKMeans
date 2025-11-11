@@ -17,8 +17,7 @@ class ADSamplingPruner {
     using DISTANCES_TYPE = skmeans_distance_t<q>;
     using KNNCandidate_t = KNNCandidate<q>;
     using VectorComparator_t = VectorComparator<q>;
-    // TODO(@lkuffo): Rename type to be more verbose
-    using MatrixF = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    using MatrixR = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
   public:
     uint32_t num_dimensions;
@@ -28,16 +27,21 @@ class ADSamplingPruner {
         : num_dimensions(num_dimensions_), epsilon0(epsilon0) {
         InitializeRatios();
 #ifdef HAS_FFTW
-        // TODO(@lkuffo) Implement FFTW matrix
+        matrix.resize(1, num_dimensions);
+        std::mt19937 gen(std::random_device{}());
+        std::uniform_int_distribution<int> dist(0, 1);
+        for (int i = 0; i < num_dimensions; ++i) {
+            matrix(i) = dist(gen) ? 1.0f : -1.0f;
+        }
 #else
         matrix.resize(num_dimensions, num_dimensions);
-        matrix = MatrixF::NullaryExpr(num_dimensions, num_dimensions, []() {
+        matrix = MatrixR::NullaryExpr(num_dimensions, num_dimensions, []() {
             static thread_local std::mt19937 gen(std::random_device{}());
             static thread_local std::normal_distribution<float> dist(0.0f, 1.0f);
             return dist(gen);
         });
-        const Eigen::HouseholderQR<MatrixF> qr(matrix);
-        matrix = qr.householderQ() * MatrixF::Identity(num_dimensions, num_dimensions);
+        const Eigen::HouseholderQR<MatrixR> qr(matrix);
+        matrix = qr.householderQ() * MatrixR::Identity(num_dimensions, num_dimensions);
 #endif
     }
 
@@ -70,7 +74,7 @@ class ADSamplingPruner {
         }
     }
 
-    static bool VerifyOrthonormal(const MatrixF& Q, float tol = 1e-5f) {
+    static bool VerifyOrthonormal(const MatrixR& Q, float tol = 1e-5f) {
         uint32_t n = Q.rows();
         assert(Q.rows() == Q.cols());
         // Compute Q * Q^T (use column-major temporary for stable multiply)
@@ -108,14 +112,14 @@ class ADSamplingPruner {
 
     // TODO(@lkuffo, high): Pararellize, use scalar_t
     void Rotate(const float* SKM_RESTRICT vectors, float* SKM_RESTRICT out_buffer, uint32_t n) {
-        Eigen::Map<const MatrixF> vectors_matrix(vectors, n, num_dimensions);
-        Eigen::Map<MatrixF> out(out_buffer, n, num_dimensions);
+        Eigen::Map<const MatrixR> vectors_matrix(vectors, n, num_dimensions);
+        Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
         out.noalias() = vectors_matrix * matrix.transpose();
     }
 
   private:
     float epsilon0 = 2.1;
-    MatrixF matrix;
+    MatrixR matrix;
 
     float GetRatio(const size_t& visited_dimensions) {
         if (visited_dimensions == 0) {

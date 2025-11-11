@@ -24,6 +24,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(faiss)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "extern/findFFTW")
+find_package(FFTW QUIET)
+if (FFTW_FLOAT_LIB_FOUND)
+    message(STATUS "FFTW (+float capabilities) found " ${FFTW_INCLUDE_DIR})
+    add_definitions(-DHAS_FFTW)
+    include_directories(${FFTW_INCLUDE_DIR})
+else()
+    message(WARNING "FFTW (+float capabilities) not found, we recommend you install it")
+endif()
+
 # CMAKE_SOURCE_DIR: ----------------------------------------------------------------------------------------------------
 add_compile_definitions(CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 

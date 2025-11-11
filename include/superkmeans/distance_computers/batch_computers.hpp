@@ -82,8 +82,8 @@ class BatchComputer<l2, f32> {
         tt.Tic();
         distances_matrix.noalias() = x_matrix * y_matrix.transpose(); // YRowMajor
         tt.Toc();
-        std::cout << "Total time for BLAS multiplication (s): " << tt.accum_time / 1000000000.0
-                  << std::endl;
+        // std::cout << "Total time for BLAS multiplication (s): " << tt.accum_time / 1000000000.0
+        //           << std::endl;
 #pragma omp parallel for num_threads(14)
         for (size_t i = 0; i < n_x; ++i) {
             const float norm_x_i = norms_x[i];
@@ -119,8 +119,8 @@ class BatchComputer<l2, f32> {
         distances_matrix.noalias() =
             x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose(); // YRowMajor
         tt.Toc();
-        std::cout << "Total time for BLAS multiplication (s): " << tt.accum_time / 1000000000.0
-                  << std::endl;
+        // std::cout << "Total time for BLAS multiplication (s): " << tt.accum_time / 1000000000.0
+        //           << std::endl;
 #pragma omp parallel for num_threads(14)
         for (size_t i = 0; i < n_x; ++i) {
             const float norm_x_i = norms_x[i];
