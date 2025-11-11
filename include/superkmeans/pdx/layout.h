@@ -80,7 +80,7 @@ class PDXLayout {
      */
     static inline PDXDimensionSplit GetDimensionSplit(const size_t d) {
         // We compute the split of vertical and horizontal dimensions
-        size_t horizontal_d = static_cast<uint32_t>(d * PROPORTION_VERTICAL_DIM);
+        size_t horizontal_d = static_cast<uint32_t>(d * PROPORTION_HORIZONTAL_DIM);
         size_t vertical_d = d - horizontal_d;
         if (horizontal_d % H_DIM_SIZE > 0) {
             horizontal_d = std::floor((1.0 * horizontal_d / H_DIM_SIZE) + 0.5) * H_DIM_SIZE;

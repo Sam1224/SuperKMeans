@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     const int n = 262144;
     const int d = 1024;
     int n_clusters = 1024;
-    int n_iters = 5;
+    int n_iters = 20;
     float sampling_fraction = 1.0;
 
     std::vector<float> data(n * d);
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     // Set up clustering parameters
     faiss::ClusteringParameters cp;
     cp.niter = n_iters;        // number of k-means iterations
-    cp.verbose = true;    // print progress
+    cp.verbose = true;     // print progress
 
     // Create the clustering object
     faiss::Clustering clus(d, n_clusters, cp);

@@ -50,6 +50,12 @@ class SuperKMeans {
             throw std::invalid_argument("sampling_fraction must be smaller than 1");
         }
         _pruner = std::make_unique<Pruner>(dimensionality, 1.5);
+        // #pragma omp parallel
+        //         {
+        //             int tid = omp_get_thread_num();
+        //             if (tid == 0)
+        //                 std::cout << "Spawned " << omp_get_num_threads() << " OpenMP threads\n";
+        //         }
     }
 
     /**
@@ -99,7 +105,6 @@ class SuperKMeans {
         _n_samples = GetNVectorsToSample(n);
         std::vector<vector_value_t> data_samples_buffer;
         auto data_to_cluster = SampleVectors(data_p, data_samples_buffer, n);
-        std::cout << "Sampling data result: " << data_to_cluster[0] << std::endl;
 
         // TODO(@lkuffo, low): I don't like this rotated_initial_centroids variable
         std::vector<centroid_value_t> rotated_initial_centroids(_n_clusters * _d);
@@ -120,19 +125,43 @@ class SuperKMeans {
         }
         // TODO(@lkuffo, low): Clang.format: Each parameter in one line if it doesnt fit in one line
         InitAssignAndUpdateCentroids(
-            data_to_cluster, rotated_initial_centroids.data(), data_norms.data(),
-            centroid_norms.data(), _n_samples
+            data_to_cluster,
+            rotated_initial_centroids.data(),
+            data_norms.data(),
+            centroid_norms.data(),
+            _n_samples
         );
         ConsolidateCentroids();
         if (verbose)
-            std::cout << "Iteration 1" << "/" << _iters << " | Objective: " << cost << std::endl;
+            std::cout << "Iteration 1" << "/" << _iters << " | Objective: " << cost << std::endl
+                      << std::endl;
 
         size_t iter_idx = 1;
+
+        GetL2NormsRowMajor(
+            data_to_cluster, _n_samples, data_norms.data(), _partial_d
+        ); // BATCHED ITER
         for (; iter_idx < _iters; ++iter_idx) {
-            if (verbose) {
-                std::cout << "Assigning..." << std::endl;
-            }
-            AssignAndUpdateCentroids(data_to_cluster, centroids_pdx_wrapper, _n_samples);
+            // BATCHED ITER
+            // std::vector<centroid_value_t> rotated_centroids(_n_clusters * _d);
+            // _pruner->Rotate(_tmp_centroids.data(), rotated_centroids.data(), _n_clusters);
+            GetL2NormsRowMajor(
+                _tmp_centroids.data(), _n_clusters, centroid_norms.data(), _partial_d
+            );
+            AssignAndUpdateCentroidsPartialBatch(
+                data_to_cluster,
+                _tmp_centroids.data(),
+                data_norms.data(),
+                centroid_norms.data(),
+                centroids_pdx_wrapper,
+                _n_samples
+            );
+
+            // NORMAL
+            // if (verbose) {
+            //     std::cout << "Assigning..." << std::endl;
+            // }
+            // AssignAndUpdateCentroids(data_to_cluster, centroids_pdx_wrapper, _n_samples);
             ConsolidateCentroids();
             if (alpha == dp) {
                 PostprocessCentroids();
@@ -148,6 +177,9 @@ class SuperKMeans {
         // Assign(data, centroids_pdx_wrapper, n);
 
         _trained = true;
+        if (verbose) {
+            std::cout << "TOTAL SEARCH TIME (s) " << _all_search_time << std::endl;
+        }
         return _centroids;
     }
 
@@ -182,57 +214,6 @@ class SuperKMeans {
         // TODO(@lkuffo, medium): Do I need to return the true centroids?
     }
 
-    // TODO(lkuffo, high): If less than 128 dimensions, then do not even attempt to prune.
-    //   Just send everything to batched queries
-    void AssignAndUpdateCentroids(
-        const vector_value_t* SKM_RESTRICT data,
-        const layout_t& pdx_centroids,
-        const size_t n
-    ) {
-        std::copy(_tmp_centroids.begin(), _tmp_centroids.end(), _prev_centroids.begin());
-        std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
-        std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
-        // Omp locks
-        std::vector<omp_lock_t> centroid_locks(_n_clusters);
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_init_lock(&centroid_locks[c]);
-        // auto data_p = data;
-        cost = 0.0;
-        // float tt = 0.0;
-        // TODO(@lkuffo, crit): Fork Union
-#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
-        for (size_t i = 0; i < n; ++i) {
-            const auto data_p = data + i * _d;
-            // We calculate the distance from the previous assignment
-            const auto prev_assignment = _assignments[i];
-            const distance_t dist_to_prev_centroid = DistanceComputer<alpha, q>::Horizontal(
-                _prev_centroids.data() + (prev_assignment * _d), data_p, _d
-            );
-            // PDXearch per vector
-            std::vector<knn_candidate_t> assignment =
-                pdx_centroids.searcher->Top1SearchWithThreshold(
-                    data_p, dist_to_prev_centroid, prev_assignment
-                );
-            auto [assignment_idx, assignment_distance] = assignment[0];
-            // tt += pdx_centroids.searcher->end_to_end_clock.accum_time;
-#pragma omp atomic
-            _cluster_sizes[assignment_idx] += 1;
-#pragma omp atomic
-            cost += assignment_distance;
-
-            _assignments[i] = assignment_idx;
-            omp_set_lock(&centroid_locks[assignment_idx]);
-            UpdateCentroid(data_p, assignment_idx);
-            omp_unset_lock(&centroid_locks[assignment_idx]);
-            // data_p += _d;
-        }
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_destroy_lock(&centroid_locks[c]);
-        // std::cout << "Total time for search (ns): " << tt << std::endl;
-        // std::cout << "Total time for search (ms): " << tt / 1000000 << std::endl;
-        // std::cout << "Time per query (ms): " << (tt / 1000000) / n << std::endl;
-    }
-
     /**
      * @brief Assign given data points to their nearest cluster.
      *
@@ -257,10 +238,24 @@ class SuperKMeans {
         if (verbose) {
             std::cout << "Batch Calculation [START]..." << std::endl;
         }
+        _blas_search_time.Reset();
+        _blas_search_time.Tic();
         batch_computer::Batch_XRowMajor_YRowMajor(
-            data, rotated_initial_centroids, n, _n_clusters, _d, data_norms, centroid_norms,
-            out_knn.data(), out_distances.data(), all_distances.data()
+            data,
+            rotated_initial_centroids,
+            n,
+            _n_clusters,
+            _d,
+            data_norms,
+            centroid_norms,
+            out_knn.data(),
+            out_distances.data(),
+            all_distances.data()
         );
+        _blas_search_time.Toc();
+        std::cout << "Total time for BLAS search (s): "
+                  << _blas_search_time.accum_time / 1000000000.0 << std::endl;
+        _all_search_time += _blas_search_time.accum_time / 1000000000.0;
         if (verbose) {
             std::cout << "Batch Calculation [DONE]..." << std::endl;
         }
@@ -271,6 +266,8 @@ class SuperKMeans {
         for (size_t c = 0; c < _n_clusters; ++c)
             omp_init_lock(&centroid_locks[c]);
         cost = 0.0;
+        _centroids_update_time.Reset();
+        _centroids_update_time.Tic();
 #pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
         for (size_t i = 0; i < n; ++i) {
             const auto data_p = data + i * _d;
@@ -285,8 +282,173 @@ class SuperKMeans {
             UpdateCentroid(data_p, assignment_idx);
             omp_unset_lock(&centroid_locks[assignment_idx]);
         }
+        _centroids_update_time.Toc();
+        std::cout << "Total time for UpdateCentroid (s): "
+                  << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
         for (size_t c = 0; c < _n_clusters; ++c)
             omp_destroy_lock(&centroid_locks[c]);
+    }
+
+    void AssignAndUpdateCentroidsPartialBatch(
+        const vector_value_t* SKM_RESTRICT data,
+        const vector_value_t* SKM_RESTRICT partial_rotated_centroids,
+        const vector_value_t* SKM_RESTRICT partial_data_norms,
+        const vector_value_t* SKM_RESTRICT partial_centroid_norms,
+        const layout_t& pdx_centroids,
+        const size_t n
+    ) {
+        std::vector<distance_t> all_distances(n * _n_clusters);
+        std::vector<uint32_t> out_knn(n);
+        std::vector<distance_t> out_distances(n);
+        if (verbose) {
+            std::cout << "Batch Calculation [START]..." << std::endl;
+        }
+        _blas_search_time.Reset();
+        _blas_search_time.Tic();
+        batch_computer::Batch_XRowMajor_YRowMajor_PartialD(
+            data,
+            partial_rotated_centroids,
+            n,
+            _n_clusters,
+            _d,
+            partial_data_norms,
+            partial_centroid_norms,
+            all_distances.data(),
+            _partial_d
+        );
+        _blas_search_time.Toc();
+        std::cout << "Total time for BLAS Partial search (s): "
+                  << _blas_search_time.accum_time / 1000000000.0 << std::endl;
+        _all_search_time += _blas_search_time.accum_time / 1000000000.0;
+        if (verbose) {
+            std::cout << "Batch Calculation [DONE]..." << std::endl;
+        }
+        std::copy(_tmp_centroids.begin(), _tmp_centroids.end(), _prev_centroids.begin());
+        std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
+        std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
+        // auto data_p = data;
+        cost = 0.0;
+        _search_time.Reset();
+        _search_time.Tic();
+        // TODO(@lkuffo, crit): Fork Union
+#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
+        for (size_t i = 0; i < n; ++i) {
+            const auto data_p = data + i * _d;
+            // We calculate the distance from the previous assignment
+            const auto prev_assignment = _assignments[i];
+            const distance_t dist_to_prev_centroid = DistanceComputer<alpha, q>::Horizontal(
+                _prev_centroids.data() + (prev_assignment * _d), data_p, _d
+            );
+            // PDXearch per vector
+            auto partial_distances_p = all_distances.data() + (i * _n_clusters);
+            std::vector<knn_candidate_t> assignment =
+                pdx_centroids.searcher->Top1SearchWithThresholdAndPartialDistances(
+                    data_p,
+                    dist_to_prev_centroid,
+                    prev_assignment,
+                    i,
+                    partial_distances_p,
+                    _partial_d
+                );
+            auto [assignment_idx, assignment_distance] = assignment[0];
+            // std::cout << assignment_idx << ", " << assignment_distance << std::endl;
+            _assignments[i] = assignment_idx;
+#pragma omp atomic
+            _cluster_sizes[assignment_idx] += 1;
+#pragma omp atomic
+            cost += assignment_distance;
+            // omp_set_lock(&centroid_locks[assignment_idx]);
+            // UpdateCentroid(data_p, assignment_idx);
+            // omp_unset_lock(&centroid_locks[assignment_idx]);
+            // data_p += _d;
+        }
+        _search_time.Toc();
+        std::cout << "Total time for PDX search (s): " << _search_time.accum_time / 1000000000.0
+                  << std::endl;
+        _all_search_time += _search_time.accum_time / 1000000000.0;
+        _centroids_update_time.Reset();
+        _centroids_update_time.Tic();
+        // Omp locks
+        std::vector<omp_lock_t> centroid_locks(_n_clusters);
+        for (size_t c = 0; c < _n_clusters; ++c)
+            omp_init_lock(&centroid_locks[c]);
+#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
+        for (size_t i = 0; i < n; ++i) {
+            const auto data_p = data + i * _d;
+            const auto assignment_idx = _assignments[i];
+            omp_set_lock(&centroid_locks[assignment_idx]);
+            UpdateCentroid(data_p, assignment_idx);
+            omp_unset_lock(&centroid_locks[assignment_idx]);
+        }
+        for (size_t c = 0; c < _n_clusters; ++c)
+            omp_destroy_lock(&centroid_locks[c]);
+        _centroids_update_time.Toc();
+        std::cout << "Total time for UpdateCentroid (s): "
+                  << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
+    }
+
+    // TODO(lkuffo, high): If less than 128 dimensions, then do not even attempt to prune.
+    //   Just send everything to batched queries
+    void AssignAndUpdateCentroids(
+        const vector_value_t* SKM_RESTRICT data,
+        const layout_t& pdx_centroids,
+        const size_t n
+    ) {
+        std::copy(_tmp_centroids.begin(), _tmp_centroids.end(), _prev_centroids.begin());
+        std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
+        std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
+        // auto data_p = data;
+        cost = 0.0;
+        _search_time.Reset();
+        _search_time.Tic();
+        // TODO(@lkuffo, crit): Fork Union
+#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
+        for (size_t i = 0; i < n; ++i) {
+            const auto data_p = data + i * _d;
+            // We calculate the distance from the previous assignment
+            const auto prev_assignment = _assignments[i];
+            const distance_t dist_to_prev_centroid = DistanceComputer<alpha, q>::Horizontal(
+                _prev_centroids.data() + (prev_assignment * _d), data_p, _d
+            );
+            // PDXearch per vector
+            std::vector<knn_candidate_t> assignment =
+                pdx_centroids.searcher->Top1SearchWithThreshold(
+                    data_p, dist_to_prev_centroid, prev_assignment, i
+                );
+            auto [assignment_idx, assignment_distance] = assignment[0];
+            _assignments[i] = assignment_idx;
+#pragma omp atomic
+            _cluster_sizes[assignment_idx] += 1;
+#pragma omp atomic
+            cost += assignment_distance;
+            // omp_set_lock(&centroid_locks[assignment_idx]);
+            // UpdateCentroid(data_p, assignment_idx);
+            // omp_unset_lock(&centroid_locks[assignment_idx]);
+            // data_p += _d;
+        }
+        _search_time.Toc();
+        std::cout << "Total time for PDX search (s): " << _search_time.accum_time / 1000000000.0
+                  << std::endl;
+        _all_search_time += _search_time.accum_time / 1000000000.0;
+        _centroids_update_time.Reset();
+        _centroids_update_time.Tic();
+        // Omp locks
+        std::vector<omp_lock_t> centroid_locks(_n_clusters);
+        for (size_t c = 0; c < _n_clusters; ++c)
+            omp_init_lock(&centroid_locks[c]);
+#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
+        for (size_t i = 0; i < n; ++i) {
+            const auto data_p = data + i * _d;
+            const auto assignment_idx = _assignments[i];
+            omp_set_lock(&centroid_locks[assignment_idx]);
+            UpdateCentroid(data_p, assignment_idx);
+            omp_unset_lock(&centroid_locks[assignment_idx]);
+        }
+        for (size_t c = 0; c < _n_clusters; ++c)
+            omp_destroy_lock(&centroid_locks[c]);
+        _centroids_update_time.Toc();
+        std::cout << "Total time for UpdateCentroid (s): "
+                  << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
     }
 
     void SplitClusters() {
@@ -305,7 +467,8 @@ class SuperKMeans {
                     }
                 }
                 memcpy(
-                    (void*) (_tmp_centroids_p + ci * _d), (void*) (_tmp_centroids_p + cj * _d),
+                    (void*) (_tmp_centroids_p + ci * _d),
+                    (void*) (_tmp_centroids_p + cj * _d),
                     sizeof(centroid_value_t) * _d
                 );
 
@@ -332,10 +495,7 @@ class SuperKMeans {
     }
 
     // SKM_ALWAYS_INLINE
-    void UpdateCentroid(
-        const vector_value_t* SKM_RESTRICT vector,
-        const uint32_t cluster_idx
-    ) {
+    void UpdateCentroid(const vector_value_t* SKM_RESTRICT vector, const uint32_t cluster_idx) {
         // Potentially also store the information to quickly calculate the norms for DP
         // TODO(@lkuffo, low): This should be trivially auto-vectorized in any architecture
         for (size_t i = 0; i < _d; ++i) {
@@ -360,13 +520,13 @@ class SuperKMeans {
             }
             _tmp_centroids_p += _d;
         }
-        if (verbose) {
-            std::cout << "Splitting..." << std::endl;
-        }
+        // if (verbose) {
+        //     std::cout << "Splitting..." << std::endl;
+        // }
         SplitClusters();
-        if (verbose) {
-            std::cout << "PDXifying centroids..." << std::endl;
-        }
+        // if (verbose) {
+        //     std::cout << "PDXifying centroids..." << std::endl;
+        // }
         // memcpy and PDXify in one go?
         // TODO(@lkuffo, high): Pruning flag false/true
         PDXLayout<q, alpha, Pruner>::template PDXify<false>(
@@ -425,6 +585,17 @@ class SuperKMeans {
         e_norms.noalias() = e_data.rowwise().squaredNorm();
     }
 
+    void GetL2NormsRowMajor(
+        const vector_value_t* SKM_RESTRICT data,
+        const size_t n,
+        vector_value_t* SKM_RESTRICT out_norm,
+        const size_t partial_d
+    ) {
+        Eigen::Map<const MatrixR> e_data(data, n, _d);
+        Eigen::Map<VectorR> e_norms(out_norm, n);
+        e_norms.noalias() = e_data.leftCols(partial_d).rowwise().squaredNorm();
+    }
+
     size_t GetNVectorsToSample(const size_t n) const {
         if (_sampling_fraction == 1.0) { // Needed?
             return n;
@@ -461,7 +632,8 @@ class SuperKMeans {
             const auto jumps = static_cast<size_t>(std::floor((1.0 * n) / _n_samples));
             for (size_t i = 0; i < _n_samples; i += jumps) {
                 memcpy(
-                    (void*) (samples_tmp.data() + (_d * i)), (void*) (data + i),
+                    (void*) (samples_tmp.data() + (_d * i)),
+                    (void*) (data + i),
                     sizeof(vector_value_t) * _d
                 );
             }
@@ -470,9 +642,9 @@ class SuperKMeans {
             tmp_data_buffer_p = data; // Zero-copy
         }
 
-        std::cout << "n_sampled: " << _n_samples << std::endl;
+        std::cout << "_n_samples: " << _n_samples << std::endl;
         if constexpr (std::is_same_v<Pruner, ADSamplingPruner<q>>) {
-            std::cout << "Rotating" << "\n";
+            // std::cout << "Rotating" << "\n";
             // TODO(@lkuffo, high): Try to remove temporary buffer for rotating the vectors (sad)
             data_samples_buffer.resize(_n_samples * _d);
             _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), _n_samples);
@@ -505,6 +677,12 @@ class SuperKMeans {
     float cost;
     size_t _n_samples;
     uint32_t N_THREADS;
+
+    TicToc _search_time;
+    TicToc _blas_search_time;
+    TicToc _centroids_update_time;
+    float _all_search_time = 0.0;
+    uint32_t _partial_d = 256;
 };
 } // namespace skmeans
 
