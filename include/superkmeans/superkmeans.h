@@ -88,6 +88,7 @@ class SuperKMeans {
         _cluster_sizes.resize(_n_clusters);
         _reciprocal_cluster_sizes.resize(_n_clusters);
         _assignments.resize(n);
+        _distances.resize(n);
         std::vector<vector_value_t> data_norms(_n_samples);
         std::vector<vector_value_t> centroid_norms(_n_clusters);
         std::vector<distance_t> all_distances(n * _n_clusters);
@@ -135,6 +136,7 @@ class SuperKMeans {
             _n_samples
         );
         ConsolidateCentroids();
+        ComputeCost();
         if (verbose)
             std::cout << "Iteration 1" << "/" << _iters << " | Objective: " << cost << std::endl
                       << std::endl;
@@ -170,6 +172,7 @@ class SuperKMeans {
             // AssignAndUpdateCentroids(data_to_cluster, centroids_pdx_wrapper, _n_samples);
 
             ConsolidateCentroids();
+            ComputeCost();
             if (alpha == dp) {
                 PostprocessCentroids();
             }
@@ -318,26 +321,14 @@ class SuperKMeans {
         _centroids_update_time.Reset();
         _centroids_update_time.Tic();
         _total_centroids_update_time.Tic();
-        // Create locks (once, outside frequent calls)
-        std::vector<omp_lock_t> centroid_locks(_n_clusters);
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_init_lock(&centroid_locks[c]);
 #pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
         for (size_t i = 0; i < n; ++i) {
-            const auto data_p = data + i * _d;
             auto assignment_idx = out_knn[i];
             auto assignment_distance = out_distances[i];
-#pragma omp atomic
-            _cluster_sizes[assignment_idx] += 1;
-#pragma omp atomic
-            cost += assignment_distance;
             _assignments[i] = assignment_idx;
-            omp_set_lock(&centroid_locks[assignment_idx]);
-            UpdateCentroid(data_p, assignment_idx);
-            omp_unset_lock(&centroid_locks[assignment_idx]);
+            _distances[i] = assignment_distance;
         }
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_destroy_lock(&centroid_locks[c]);
+        UpdateCentroids(data, n);
         _centroids_update_time.Toc();
         _total_centroids_update_time.Toc();
         if (verbose)
@@ -415,10 +406,7 @@ class SuperKMeans {
                 );
             auto [assignment_idx, assignment_distance] = assignment[0];
             _assignments[i] = assignment_idx;
-#pragma omp atomic
-            _cluster_sizes[assignment_idx] += 1;
-#pragma omp atomic
-            cost += assignment_distance;
+            _distances[i] = assignment_distance;
         }
         _search_time.Toc();
         _pdx_search_time.Toc();
@@ -427,25 +415,14 @@ class SuperKMeans {
             std::cout << "Total time for PDX search (s): " << _search_time.accum_time / 1000000000.0
                       << std::endl;
         _all_search_time += _search_time.accum_time / 1000000000.0;
+
         _centroids_update_time.Reset();
         _centroids_update_time.Tic();
         _total_centroids_update_time.Tic();
-        // Omp locks
-        std::vector<omp_lock_t> centroid_locks(_n_clusters);
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_init_lock(&centroid_locks[c]);
-#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
-        for (size_t i = 0; i < n; ++i) {
-            const auto data_p = data + i * _d;
-            const auto assignment_idx = _assignments[i];
-            omp_set_lock(&centroid_locks[assignment_idx]);
-            UpdateCentroid(data_p, assignment_idx);
-            omp_unset_lock(&centroid_locks[assignment_idx]);
-        }
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_destroy_lock(&centroid_locks[c]);
+        UpdateCentroids(data, n);
         _centroids_update_time.Toc();
         _total_centroids_update_time.Toc();
+
         if (verbose)
             std::cout << "Total time for UpdateCentroid (s): "
                       << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
@@ -485,14 +462,7 @@ class SuperKMeans {
                 );
             auto [assignment_idx, assignment_distance] = assignment[0];
             _assignments[i] = assignment_idx;
-#pragma omp atomic
-            _cluster_sizes[assignment_idx] += 1;
-#pragma omp atomic
-            cost += assignment_distance;
-            // omp_set_lock(&centroid_locks[assignment_idx]);
-            // UpdateCentroid(data_p, assignment_idx);
-            // omp_unset_lock(&centroid_locks[assignment_idx]);
-            // data_p += _d;
+            _distances[i] = assignment_distance;
         }
         _total_search_time.Toc();
         _search_time.Toc();
@@ -501,28 +471,55 @@ class SuperKMeans {
             std::cout << "Total time for PDX search (s): " << _search_time.accum_time / 1000000000.0
                       << std::endl;
         _all_search_time += _search_time.accum_time / 1000000000.0;
+
         _centroids_update_time.Reset();
         _centroids_update_time.Tic();
         _total_centroids_update_time.Tic();
-        // Omp locks
-        std::vector<omp_lock_t> centroid_locks(_n_clusters);
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_init_lock(&centroid_locks[c]);
-#pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
-        for (size_t i = 0; i < n; ++i) {
-            const auto data_p = data + i * _d;
-            const auto assignment_idx = _assignments[i];
-            omp_set_lock(&centroid_locks[assignment_idx]);
-            UpdateCentroid(data_p, assignment_idx);
-            omp_unset_lock(&centroid_locks[assignment_idx]);
-        }
-        for (size_t c = 0; c < _n_clusters; ++c)
-            omp_destroy_lock(&centroid_locks[c]);
+        UpdateCentroids(data, n);
         _centroids_update_time.Toc();
         _total_centroids_update_time.Toc();
+
         if (verbose)
             std::cout << "Total time for UpdateCentroid (s): "
                       << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
+    }
+
+    void UpdateCentroids(const vector_value_t* SKM_RESTRICT data, const size_t n) {
+#pragma omp parallel num_threads(N_THREADS)
+        {
+            uint32_t nt = N_THREADS;
+            uint32_t rank = omp_get_thread_num();
+            // This thread is taking care of centroids c0:c1
+            size_t c0 = (_n_clusters * rank) / nt;
+            size_t c1 = (_n_clusters * (rank + 1)) / nt;
+
+            // OLD LOOP
+            // for (size_t i = 0; i < n; ++i) {
+            //     const auto data_p = data + i * _d;
+            //     const auto assignment_idx = _assignments[i];
+            //     UpdateCentroid(data_p, assignment_idx);
+            // }
+            ////////////
+
+            for (size_t i = 0; i < n; i++) {
+                int64_t ci = _assignments[i];
+                assert(ci >= 0 && ci < _n_clusters);
+                if (ci >= c0 && ci < c1) {
+                    auto vector_p = data + i * _d;
+                    _cluster_sizes[ci] += 1;
+                    UpdateCentroid(vector_p, ci);
+                }
+            }
+        }
+    }
+
+    SKM_ALWAYS_INLINE void UpdateCentroid(const vector_value_t* SKM_RESTRICT vector, const uint32_t cluster_idx) {
+        // Potentially also store the information to quickly calculate the norms for DP
+        // TODO(@lkuffo, low): This should be trivially auto-vectorized in any architecture
+#pragma clang loop vectorize(enable)
+        for (size_t i = 0; i < _d; ++i) {
+            _tmp_centroids[cluster_idx * _d + i] += vector[i];
+        }
     }
 
     void SplitClusters() {
@@ -568,15 +565,6 @@ class SuperKMeans {
         }
     }
 
-    // SKM_ALWAYS_INLINE
-    void UpdateCentroid(const vector_value_t* SKM_RESTRICT vector, const uint32_t cluster_idx) {
-        // Potentially also store the information to quickly calculate the norms for DP
-        // TODO(@lkuffo, low): This should be trivially auto-vectorized in any architecture
-        for (size_t i = 0; i < _d; ++i) {
-            _tmp_centroids[cluster_idx * _d + i] += vector[i];
-        }
-    }
-
     void ConsolidateCentroids() {
         _centroids_splitting.Tic();
         for (size_t i = 0; i < _n_clusters; ++i) {
@@ -590,6 +578,7 @@ class SuperKMeans {
             }
             auto mult_factor = _reciprocal_cluster_sizes[i];
             // TODO(@lkuffo, low): This should be trivially auto-vectorized in any architecture
+#pragma clang loop vectorize(enable)
             for (size_t j = 0; j < _d; ++j) {
                 _tmp_centroids_p[j] = _tmp_centroids_p[j] * mult_factor;
             }
@@ -604,6 +593,13 @@ class SuperKMeans {
             _tmp_centroids.data(), _centroids.data(), _n_clusters, _d
         );
         _pdxify_time.Toc();
+    }
+
+    void ComputeCost() {
+#pragma clang loop vectorize(enable)
+        for (size_t i = 0; i < _n_samples; ++i) {
+            cost += _distances[i];
+        }
     }
 
     std::vector<skmeans_centroid_value_t<q>> GetCentroids() const { return _centroids; }
@@ -748,6 +744,7 @@ class SuperKMeans {
     std::vector<centroid_value_t> _prev_centroids;
     std::vector<centroid_value_t> _super_centroids;
     std::vector<uint32_t> _assignments;
+    std::vector<distance_t> _distances;
     std::vector<uint32_t> _cluster_sizes;
     std::vector<vector_value_t> data_norms;
     std::vector<vector_value_t> centroid_norms;

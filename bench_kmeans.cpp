@@ -44,11 +44,7 @@ int main(int argc, char* argv[]) {
     auto kmeans_state = skmeans::SuperKMeans<skmeans::f32, skmeans::l2>(
         n_clusters, d, n_iters, sampling_fraction, true, THREADS
     );
-    skmeans::TicToc m;
-    m.Tic();
     ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("SKMeans", [&]() {
         auto centroids = kmeans_state.Train(data.data(), n);
     });
-    m.Toc();
-    std::cout << "TOTAL (s) " << m.accum_time / 1000000000.0 << std::endl;
 }
