@@ -310,10 +310,10 @@ class SuperKMeans {
         if (verbose) {
             std::cout << "Batch Calculation [DONE]..." << std::endl;
         }
-        _allocator_time.Tic();
+        _sampling_time.Tic();
         std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
         std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
-        _allocator_time.Toc();
+        _sampling_time.Toc();
         cost = 0.0;
         _centroids_update_time.Reset();
         _centroids_update_time.Tic();
@@ -393,7 +393,7 @@ class SuperKMeans {
         _search_time.Tic();
         _pdx_search_time.Tic();
         _total_search_time.Tic();
-        // TODO(@lkuffo, crit): Fork Union
+        // TODO(@lkuffo, low): Fork Union
 #pragma omp parallel for if (N_THREADS > 1) num_threads(N_THREADS)
         for (size_t i = 0; i < n; ++i) {
             const auto data_p = data + i * _d;
@@ -414,16 +414,11 @@ class SuperKMeans {
                     _partial_d
                 );
             auto [assignment_idx, assignment_distance] = assignment[0];
-            // std::cout << assignment_idx << ", " << assignment_distance << std::endl;
             _assignments[i] = assignment_idx;
 #pragma omp atomic
             _cluster_sizes[assignment_idx] += 1;
 #pragma omp atomic
             cost += assignment_distance;
-            // omp_set_lock(&centroid_locks[assignment_idx]);
-            // UpdateCentroid(data_p, assignment_idx);
-            // omp_unset_lock(&centroid_locks[assignment_idx]);
-            // data_p += _d;
         }
         _search_time.Toc();
         _pdx_search_time.Toc();

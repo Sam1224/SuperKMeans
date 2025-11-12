@@ -3,6 +3,7 @@ set(Python3_FIND_STRATEGY NEVER)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS -Wall)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/extern/findFFTW")
 project(SuperKMeans)
 
 add_compile_options(-fPIC)
@@ -11,6 +12,15 @@ include(FetchContent)
 include(CheckCXXCompilerFlag)
 include(CMakePrintHelpers)
 include(CTest)
+
+find_package(FFTW QUIET)
+if (FFTW_FLOAT_LIB_FOUND)
+    message(STATUS "FFTW (+float capabilities) found " ${FFTW_INCLUDE_DIR})
+    add_definitions(-DHAS_FFTW)
+    include_directories(${FFTW_INCLUDE_DIRS})
+else()
+    message(WARNING "FFTW (+float capabilities) not found, we recommend you install it")
+endif()
 
 add_definitions(-DEIGEN_USE_BLAS)
 set(FAISS_ENABLE_PYTHON OFF CACHE BOOL "disable python" FORCE)
@@ -24,16 +34,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(faiss)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "extern/findFFTW")
-find_package(FFTW QUIET)
-if (FFTW_FLOAT_LIB_FOUND)
-    message(STATUS "FFTW (+float capabilities) found " ${FFTW_INCLUDE_DIR})
-    add_definitions(-DHAS_FFTW)
-    include_directories(${FFTW_INCLUDE_DIR})
-else()
-    message(WARNING "FFTW (+float capabilities) not found, we recommend you install it")
-endif()
-
 # CMAKE_SOURCE_DIR: ----------------------------------------------------------------------------------------------------
 add_compile_definitions(CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
@@ -46,6 +46,11 @@ add_executable(bench_kmeans_lorann.out bench_kmeans_lorann.cpp)
 add_executable(bench_kmeans_faiss.out bench_kmeans_faiss.cpp)
 
 target_link_libraries(bench_kmeans_faiss.out PRIVATE faiss)
-
 target_link_libraries(bench_kernels.out PRIVATE "-framework Accelerate")
-target_link_libraries(bench_kmeans.out PRIVATE "-framework Accelerate")
+
+if (FFTW_FOUND)
+    message(${FFTW_FLOAT_THREADS_LIB})
+    target_link_libraries(bench_kmeans.out PRIVATE "-framework Accelerate" ${FFTW_FLOAT_LIB} ${FFTW_FLOAT_THREADS_LIB})
+else()
+    target_link_libraries(bench_kmeans.out PRIVATE "-framework Accelerate")
+endif()

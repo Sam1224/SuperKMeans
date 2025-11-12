@@ -26,23 +26,28 @@ class ADSamplingPruner {
     ADSamplingPruner(uint32_t num_dimensions_, float epsilon0)
         : num_dimensions(num_dimensions_), epsilon0(epsilon0) {
         InitializeRatios();
+        bool matrix_created = false;
 #ifdef HAS_FFTW
-        matrix.resize(1, num_dimensions);
-        std::mt19937 gen(std::random_device{}());
-        std::uniform_int_distribution<int> dist(0, 1);
-        for (int i = 0; i < num_dimensions; ++i) {
-            matrix(i) = dist(gen) ? 1.0f : -1.0f;
+        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
+            matrix.resize(1, num_dimensions);
+            std::mt19937 gen(std::random_device{}());
+            std::uniform_int_distribution<int> dist(0, 1);
+            for (int i = 0; i < num_dimensions; ++i) {
+                matrix(i) = dist(gen) ? 1.0f : -1.0f;
+            }
+            matrix_created = true;
         }
-#else
-        matrix.resize(num_dimensions, num_dimensions);
-        matrix = MatrixR::NullaryExpr(num_dimensions, num_dimensions, []() {
-            static thread_local std::mt19937 gen(std::random_device{}());
-            static thread_local std::normal_distribution<float> dist(0.0f, 1.0f);
-            return dist(gen);
-        });
-        const Eigen::HouseholderQR<MatrixR> qr(matrix);
-        matrix = qr.householderQ() * MatrixR::Identity(num_dimensions, num_dimensions);
 #endif
+        if (!matrix_created) {
+            matrix.resize(num_dimensions, num_dimensions);
+            matrix = MatrixR::NullaryExpr(num_dimensions, num_dimensions, []() {
+                static thread_local std::mt19937 gen(std::random_device{}());
+                static thread_local std::normal_distribution<float> dist(0.0f, 1.0f);
+                return dist(gen);
+            });
+            const Eigen::HouseholderQR<MatrixR> qr(matrix);
+            matrix = qr.householderQ() * MatrixR::Identity(num_dimensions, num_dimensions);
+        }
     }
 
     ADSamplingPruner(uint32_t num_dimensions, float epsilon0, float* matrix_p)
@@ -112,9 +117,54 @@ class ADSamplingPruner {
 
     // TODO(@lkuffo, high): Pararellize, use scalar_t
     void Rotate(const float* SKM_RESTRICT vectors, float* SKM_RESTRICT out_buffer, uint32_t n) {
+        TicToc m;
+        m.Tic();
         Eigen::Map<const MatrixR> vectors_matrix(vectors, n, num_dimensions);
         Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
+#ifdef HAS_FFTW
+        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
+            Eigen::RowVectorXf first_row = matrix.row(0);
+            MatrixR pre_output = vectors_matrix.array().rowwise() * first_row.array();
+
+            // fftwf_plan plan = fftwf_plan_r2r_1d(
+            //     num_dimensions, pre_output.data(), out.data(), FFTW_REDFT10, FFTW_ESTIMATE
+            // );
+// #pragma omp parallel for num_threads(14)
+//             for (int r = 0; r < n; ++r) {
+//                 fftwf_execute_r2r(plan, pre_output.row(r).data(), out.row(r).data());
+//             }
+//             fftwf_destroy_plan(plan);
+
+            fftwf_init_threads();
+            fftwf_plan_with_nthreads(14);
+            int rank = 1;
+            int n0 = static_cast<int>(num_dimensions); // length of each 1D transform
+            int howmany = static_cast<int>(n);         // number of transforms (one per row)
+            fftw_r2r_kind kind[1] = { FFTW_REDFT10 };
+            fftwf_plan plan = fftwf_plan_many_r2r(
+                rank, &n0, howmany,
+                pre_output.data(),      /*in*/
+                NULL, 1, n0,     /*inembed, istride, idist*/
+                out.data(),      /*out*/
+                NULL, 1, n0,     /*onembed, ostride, odist*/
+                kind,
+                FFTW_ESTIMATE
+            );
+            fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
+
+            const float s0 = std::sqrt(1.0f / (4.0f * num_dimensions));
+            const float s  = std::sqrt(1.0f / (2.0f * num_dimensions));
+            out.col(0).array() *= s0;
+            out.rightCols(num_dimensions - 1).array() *= s;
+            m.Toc();
+            std::cout << "Rot Time (s)" << m.accum_time / 1000000000.0 << std::endl;
+            return;
+        }
+#endif
         out.noalias() = vectors_matrix * matrix.transpose();
+        m.Toc();
+        std::cout << "Rot Time (s)" << m.accum_time / 1000000000.0 << std::endl;
     }
 
   private:
