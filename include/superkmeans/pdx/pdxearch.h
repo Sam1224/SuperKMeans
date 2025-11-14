@@ -56,6 +56,21 @@ class PDXearch {
         }
     }
 
+    void PrintPrunedPositions() {
+        std::vector<std::pair<uint32_t, int>> elems(
+            pruned_positions.begin(), pruned_positions.end()
+        );
+        std::sort(elems.begin(), elems.end(), [](const auto& a, const auto& b) {
+            return a.first < b.first;
+        });
+        std::cout << "{\n";
+        for (const auto& [key, value] : elems) {
+            std::cout << "  " << key << ": " << value << ",\n";
+        }
+        std::cout << "}\n";
+        pruned_positions.clear();
+    }
+
     void SetNProbe(size_t nprobe) { ivf_nprobe = nprobe; }
 
     TicToc end_to_end_clock = TicToc();
@@ -72,6 +87,8 @@ class PDXearch {
     std::vector<uint32_t> clusters_indices;    // TODO: Thread local
     std::vector<uint32_t> clusters_indices_l0; // TODO: Thread local
     std::vector<size_t> cluster_offsets;
+
+    static inline std::unordered_map<uint32_t, uint32_t> pruned_positions{};
 
     // For pruning we do not use tight loops of 64. We know that tight loops bring benefits
     // to the distance kernels (40% faster), however doing so + PRUNING in the tight block of 64
@@ -375,7 +392,8 @@ class PDXearch {
                 );
             } else { // !We have the data also in the Horizontal layout
                 // We go till the end (TODO(@lkuffo, low): Should I do blocks of 64?)
-                size_t dimensions_left = pdx_data.num_vertical_dimensions - current_vertical_dimension;
+                size_t dimensions_left =
+                    pdx_data.num_vertical_dimensions - current_vertical_dimension;
                 size_t offset_query = current_vertical_dimension;
                 for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                     size_t v_idx = pruning_positions[vector_idx];
@@ -905,6 +923,9 @@ class PDXearch {
                 );
             }
         }
+        float pruned_at_avg = (1.0 * pruned_at) / clusters_to_visit;
+        uint32_t group = static_cast<uint32_t>(std::ceil(pruned_at_avg / 16.0f) * 16.0f);
+        pruned_positions[group] += 1;
         // if (vector_id % 10000 == 0) {
         //     std::cout << "Vector " << vector_id << " | "
         //               << "Pruned At Avg.: " << (1.0 * pruned_at) / clusters_to_visit <<

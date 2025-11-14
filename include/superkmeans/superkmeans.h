@@ -115,8 +115,18 @@ class SuperKMeans {
             std::cout << "Sampling data..." << std::endl;
         }
 
+        // TODO: This is bad because data_to_cluster may have one buffer or the other, objects
+        // life span is not clear
         std::vector<vector_value_t> data_samples_buffer;
         auto data_to_cluster = SampleVectors(data_p, data_samples_buffer, n);
+
+        _reordering_time.Tic();
+        // memcpy(
+        //     (void*) (data_p),
+        //     (void*) (data_samples_buffer.data()),
+        //     sizeof(centroid_value_t) * (_n_samples * _d)
+        // );
+        _reordering_time.Toc();
 
         // TODO(@lkuffo, low): I don't like this rotated_initial_centroids variable
         _allocator_time.Tic();
@@ -186,7 +196,7 @@ class SuperKMeans {
         if (verbose) {
             const float total_time = _total_search_time.accum_time + _allocator_time.accum_time +
                                      _rotator_time.accum_time + _norms_calc_time.accum_time +
-                                     _sampling_time.accum_time +
+                                     _sampling_time.accum_time + _reordering_time.accum_time +
                                      _total_centroids_update_time.accum_time +
                                      _centroids_splitting.accum_time + _pdxify_time.accum_time;
             std::cout << std::fixed << std::setprecision(3);
@@ -219,6 +229,9 @@ class SuperKMeans {
                       << _pdxify_time.accum_time / total_time * 100 << "%) " << std::endl;
             std::cout << "TOTAL SHIFT TIME " << _shift_time.accum_time / 1000000000.0 << " ("
                       << _shift_time.accum_time / total_time * 100 << "%) " << std::endl;
+            std::cout << "TOTAL REORDERING TIME " << _reordering_time.accum_time / 1000000000.0
+                      << " (" << _reordering_time.accum_time / total_time * 100 << "%) "
+                      << std::endl;
             std::cout << "TOTAL (s) "
                       << (_total_search_time.accum_time + _allocator_time.accum_time +
                           _rotator_time.accum_time + _norms_calc_time.accum_time +
@@ -477,23 +490,6 @@ class SuperKMeans {
                 _tmp_centroids_p[j] *= mult_factor;
             }
         }
-//         for (size_t i = 0; i < _n_clusters; ++i) {
-//             _reciprocal_cluster_sizes[i] = 1.0 / _cluster_sizes[i];
-//         }
-//         auto _tmp_centroids_p = _tmp_centroids.data();
-//         for (size_t i = 0; i < _n_clusters; ++i) {
-//             if (_cluster_sizes[i] == 0) {
-//                 _tmp_centroids_p += _d;
-//                 continue;
-//             }
-//             auto mult_factor = _reciprocal_cluster_sizes[i];
-//             // TODO(@lkuffo, low): This should be trivially auto-vectorized in any architecture
-// #pragma clang loop vectorize(enable)
-//             for (size_t j = 0; j < _d; ++j) {
-//                 _tmp_centroids_p[j] = _tmp_centroids_p[j] * mult_factor;
-//             }
-//             _tmp_centroids_p += _d;
-//         }
         SplitClusters();
         _centroids_splitting.Toc();
         // memcpy and PDXify in one go?
@@ -667,7 +663,7 @@ class SuperKMeans {
 
         std::cout << "_n_samples: " << _n_samples << std::endl;
         if constexpr (std::is_same_v<Pruner, ADSamplingPruner<q>>) {
-            // TODO(@lkuffo, high): This buffer is a headache
+            // TODO(@lkuffo, crit): This buffer is a headache
             _allocator_time.Tic();
             data_samples_buffer.resize(_n_samples * _d);
             _allocator_time.Toc();
@@ -682,8 +678,8 @@ class SuperKMeans {
 
     std::unique_ptr<Pruner> _pruner;
 
-    std::vector<centroid_value_t> _centroids;     // Always keeps the PDX centroids
-    std::vector<centroid_value_t> _tmp_centroids; // Always keeps the horizontal centroids
+    std::vector<centroid_value_t> _centroids;      // Always keeps the PDX centroids
+    std::vector<centroid_value_t> _tmp_centroids;  // Always keeps the horizontal centroids
     std::vector<centroid_value_t> _prev_centroids; // Always keeps the previous iteration centroids
     std::vector<centroid_value_t> _aux_hor_centroids;
     std::vector<uint32_t> _assignments;
@@ -708,6 +704,7 @@ class SuperKMeans {
     uint32_t _vertical_d;
     float tol;
 
+    TicToc _reordering_time;
     TicToc _search_time;
     TicToc _blas_search_time;
     TicToc _blas_total_time;

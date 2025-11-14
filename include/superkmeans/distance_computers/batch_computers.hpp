@@ -164,8 +164,8 @@ class BatchComputer<l2, f32> {
         float* SKM_RESTRICT all_distances_buf,
         const layout_t& pdx_centroids,
         const uint32_t partial_d,
-        TicToc &blas_tt,
-        TicToc &pdx_tt
+        TicToc& blas_tt,
+        TicToc& pdx_tt
     ) {
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
             auto batch_n_x = X_BATCH_SIZE;
@@ -197,11 +197,13 @@ class BatchComputer<l2, f32> {
                 }
                 blas_tt.Toc();
                 pdx_tt.Tic();
-#pragma omp parallel for num_threads(14)
+#pragma omp parallel for num_threads(10)
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     auto data_p = x + (i_idx * d);
-                    const auto prev_assignment = out_knn[i_idx];
+                    const auto prev_assignment = out_knn[i_idx]; // Note that this will take the KNN from the previous batch loop
+                    // TODO(lkuffo, crit): In that sense, we can avoid this if j > 0, and just use out_distances[i_idx], since this will
+                    //   always have the right distance
                     const distance_t dist_to_prev_centroid = DistanceComputer<l2, f32>::Horizontal(
                         prev_y + (prev_assignment * d), data_p, d
                     );
@@ -218,6 +220,12 @@ class BatchComputer<l2, f32> {
                             j / VECTOR_CHUNK_SIZE,              // start cluster_id
                             (j + batch_n_y) / VECTOR_CHUNK_SIZE // end cluster_id
                         );
+                        // pdx_centroids.searcher->Top1SearchWithThreshold(
+                        //     data_p,
+                        //     dist_to_prev_centroid,
+                        //     prev_assignment,
+                        //     r
+                        // );
                     auto [assignment_idx, assignment_distance] = assignment[0];
                     out_knn[i_idx] = assignment_idx;
                     out_distances[i_idx] = assignment_distance;
@@ -225,6 +233,7 @@ class BatchComputer<l2, f32> {
                 pdx_tt.Toc();
             }
         }
+        // pdx_centroids.searcher->PrintPrunedPositions();
     };
 };
 
