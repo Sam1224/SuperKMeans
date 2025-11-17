@@ -34,6 +34,14 @@ inline std::unique_ptr<char[]> MmapFile(const std::string& filename) {
     return data;
 }
 
+inline uint32_t CeilXToMultipleOfM(uint32_t x, uint32_t m) {
+    return (m == 0) ? x : ((x + m - 1) / m) * m;
+}
+
+inline uint32_t FloorXToMultipleOfM(uint32_t x, uint32_t m) {
+    return (m == 0) ? x : (x / m) * m;
+}
+
 /******************************************************************
  * Clock to benchmark algorithms runtime
  ******************************************************************/
@@ -55,6 +63,7 @@ class TicToc {
         accum_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     }
 };
+
 } // namespace skmeans
 
 #endif // SKMEANS_PDX_UTILS_HPP

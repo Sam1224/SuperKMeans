@@ -391,18 +391,20 @@ class PDXearch {
                     pdx_data.num_vertical_dimensions
                 );
             } else { // !We have the data also in the Horizontal layout
-                // We go till the end (TODO(@lkuffo, low): Should I do blocks of 64?)
+                // We go till the end
                 size_t dimensions_left =
                     pdx_data.num_vertical_dimensions - current_vertical_dimension;
                 size_t offset_query = current_vertical_dimension;
                 for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                     size_t v_idx = pruning_positions[vector_idx];
-                    auto data_pos = aux_data + (v_idx * dimensions_left);
+                    auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
+                                    current_vertical_dimension;
                     __builtin_prefetch(data_pos, 0, 2);
                 }
                 for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                     size_t v_idx = pruning_positions[vector_idx];
-                    auto data_pos = aux_data + (v_idx * dimensions_left);
+                    auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
+                                    current_vertical_dimension;
                     pruning_distances[v_idx] += DistanceComputer<alpha, Q>::Horizontal(
                         query + offset_query, data_pos, dimensions_left
                     );
@@ -850,7 +852,10 @@ class PDXearch {
         const float* SKM_RESTRICT query,
         const float prev_pruning_threshold,
         const uint32_t prev_top_1,
-        const size_t vector_id
+        const size_t vector_id,
+        uint32_t& pruned_at_accum,
+        const size_t start_cluster,
+        const size_t end_cluster
     ) {
         alignas(64) thread_local uint32_t pruning_positions[PDX_VECTOR_SIZE];
         // alignas(64) thread_local DISTANCES_TYPE distances[PDX_VECTOR_SIZE];
@@ -863,7 +868,7 @@ class PDXearch {
         thread_local size_t current_cluster = 0;
 
         best_k = {};
-        size_t pruned_at = 0;
+        // size_t pruned_at = 0;
 
         // Setup previous top1
         pruning_threshold = prev_pruning_threshold;
@@ -883,7 +888,7 @@ class PDXearch {
         size_t clusters_to_visit = pdx_data.num_clusters;
         // PDXearch core
         current_dimension_idx = 0;
-        for (size_t cluster_idx = 0; cluster_idx < clusters_to_visit; ++cluster_idx) {
+        for (size_t cluster_idx = start_cluster; cluster_idx < end_cluster; ++cluster_idx) {
             current_cluster = cluster_idx;
             CLUSTER_TYPE& cluster = pdx_data.clusters[current_cluster];
             Warmup(
@@ -898,7 +903,7 @@ class PDXearch {
                 best_k,
                 current_dimension_idx
             );
-            pruned_at += current_dimension_idx;
+            pruned_at_accum += current_dimension_idx;
             Prune(
                 query,
                 cluster.data,
@@ -923,9 +928,9 @@ class PDXearch {
                 );
             }
         }
-        float pruned_at_avg = (1.0 * pruned_at) / clusters_to_visit;
-        uint32_t group = static_cast<uint32_t>(std::ceil(pruned_at_avg / 16.0f) * 16.0f);
-        pruned_positions[group] += 1;
+        // float pruned_at_avg = (1.0 * pruned_at) / clusters_to_visit;
+        // uint32_t group = static_cast<uint32_t>(std::ceil(pruned_at_avg / 16.0f) * 16.0f);
+        // pruned_positions[group] += 1;
         // if (vector_id % 10000 == 0) {
         //     std::cout << "Vector " << vector_id << " | "
         //               << "Pruned At Avg.: " << (1.0 * pruned_at) / clusters_to_visit <<
