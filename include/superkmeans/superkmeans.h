@@ -192,15 +192,15 @@ class SuperKMeans {
                       << " | Shift: " << shift << " | Split: " << _n_split << std::endl
                       << std::endl;
         // End of second iteration
-
-        // Follow recipe to create pruning groups
         CreatePruningGroups(data_to_cluster, n);
 
         // Rest of iterations
         // We need as many buffers with norms as groups
+        _allocator_time.Tic();
         std::vector<vector_value_t> centroid_partial_norms(
             _n_clusters * _pruning_groups_partial_d.size()
         );
+        _allocator_time.Toc();
         GetGroupsL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
         for (; iter_idx < _iters; ++iter_idx) {
             // BATCHED ITER
@@ -255,6 +255,8 @@ class SuperKMeans {
                   << _blas_total_time.accum_time / total_time * 100 << "%) " << std::endl;
         std::cout << " - PDX  " << _pdx_search_time.accum_time / 1000000000.0 << " ("
                   << _pdx_search_time.accum_time / total_time * 100 << "%) " << std::endl;
+        std::cout << " - NORMS  " << _blas_norms_time.accum_time / 1000000000.0 << " ("
+          << _blas_norms_time.accum_time / total_time * 100 << "%) " << std::endl;
         std::cout << "TOTAL ALLOCATOR TIME " << _allocator_time.accum_time / 1000000000.0 << " ("
                   << _allocator_time.accum_time / total_time * 100 << "%) " << std::endl;
         std::cout << "TOTAL ROTATOR TIME " << _rotator_time.accum_time / 1000000000.0 << " ("
@@ -427,7 +429,8 @@ class SuperKMeans {
             all_distances,
             pdx_centroids,
             _blas_total_time,
-            _pdx_search_time
+            _pdx_search_time,
+            _blas_norms_time
         );
         _search_time.Toc();
         _total_search_time.Toc();
@@ -974,6 +977,7 @@ class SuperKMeans {
     TicToc _pdxify_time;
     TicToc _pdx_search_time;
     TicToc _shift_time;
+    TicToc _blas_norms_time;
     float _all_search_time = 0.0;
 };
 } // namespace skmeans
