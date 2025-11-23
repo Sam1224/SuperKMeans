@@ -195,8 +195,8 @@ class PDXLayout {
 
                 // Horizontal Blocks
                 for (size_t j = 0; j < horizontal_d; j += H_DIM_SIZE) {
-                    Eigen::Map<Eigen::Matrix<scalar_t, H_DIM_SIZE, CHUNK_SIZE, Eigen::RowMajor>>
-                        out_h(out_chunk_p, H_DIM_SIZE, CHUNK_SIZE);
+                    Eigen::Map<Eigen::Matrix<scalar_t, CHUNK_SIZE, H_DIM_SIZE, Eigen::RowMajor>>
+                        out_h(out_chunk_p, CHUNK_SIZE, H_DIM_SIZE);
                     out_h.noalias() = in.block(0, vertical_d + j, CHUNK_SIZE, H_DIM_SIZE);
                     out_chunk_p += CHUNK_SIZE * H_DIM_SIZE;
                 }

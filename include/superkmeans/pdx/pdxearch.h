@@ -72,7 +72,6 @@ class PDXearch {
     uint32_t is_adsampling = false;
 
     static inline std::unordered_map<uint32_t, uint32_t> pruned_positions{};
-    static constexpr uint16_t PDX_VECTOR_SIZE = 64;
 
     template <Quantization Q = q>
     void ResetPruningDistances(size_t n_vectors, skmeans_distance_t<Q>* pruning_distances) {
