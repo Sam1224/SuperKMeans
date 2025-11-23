@@ -113,9 +113,7 @@ class SuperKMeans {
         _allocator_time.Tic();
         _aux_hor_centroids.resize(_n_clusters * _vertical_d);
         _allocator_time.Toc();
-        std::cout << "mmm" << std::endl;
         auto centroids_pdx_wrapper = GenerateCentroids(data_p, n);
-        std::cout << "mmm" << std::endl;
         if (verbose) {
             std::cout << "Sampling data..." << std::endl;
         }
@@ -615,11 +613,9 @@ class SuperKMeans {
             _pruner->Rotate(_tmp_centroids.data(), rotated_centroids.data(), _n_clusters);
             _rotator_time.Toc();
             _pdxify_time.Tic();
-            std::cout << "2" << std::endl;
             PDXLayout<q, alpha, Pruner>::template PDXify<false>(
                 rotated_centroids.data(), _centroids.data(), _n_clusters, _d
             );
-            std::cout << "3" << std::endl;
             _pdxify_time.Toc();
         } else {
             PDXLayout<q, alpha, Pruner>::template PDXify<true>(
