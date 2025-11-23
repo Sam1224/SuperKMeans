@@ -219,7 +219,7 @@ class BatchComputer<l2, f32> {
                 norms_tt.Toc();
                 cur_pdx_tt.Tic();
                 pdx_tt.Tic();
-#pragma omp parallel for num_threads(10)
+#pragma omp parallel for num_threads(10) schedule(dynamic, 8)
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     auto data_p = x + (i_idx * d);

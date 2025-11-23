@@ -202,12 +202,19 @@ class PDXearch {
             heap,
         size_t& n_vectors_not_pruned,
         uint32_t& current_dimension_idx,
+        const uint32_t* vector_indices,
+        const uint32_t prev_top_1,
         const skmeans_value_t<Q>* SKM_RESTRICT aux_data = nullptr
     ) {
         GetPruningThreshold<Q>(k, heap, pruning_threshold, current_dimension_idx);
         InitPositionsArray<Q>(
             n_vectors, n_vectors_not_pruned, pruning_positions, pruning_threshold, pruning_distances
         );
+        // Early exit if the only remaining point is the one that was initially in the heap
+        if (n_vectors_not_pruned == 1 && vector_indices[pruning_positions[0]] == prev_top_1) {
+            n_vectors_not_pruned = 0;
+            return;
+        }
         size_t cur_n_vectors_not_pruned = 0;
         size_t current_vertical_dimension = current_dimension_idx;
         size_t current_horizontal_dimension = 0;
@@ -442,6 +449,8 @@ class PDXearch {
                 best_k,
                 n_vectors_not_pruned,
                 current_dimension_idx,
+                cluster.indices,
+                prev_top_1,
                 cluster.aux_hor_data
             );
             if (n_vectors_not_pruned) {
@@ -516,6 +525,8 @@ class PDXearch {
                 best_k,
                 n_vectors_not_pruned,
                 current_dimension_idx,
+                cluster.indices,
+                prev_top_1,
                 cluster.aux_hor_data
             );
             if (n_vectors_not_pruned) {
@@ -606,6 +617,8 @@ class PDXearch {
                 best_k,
                 n_vectors_not_pruned,
                 current_dimension_idx,
+                cluster.indices,
+                prev_top_1,
                 cluster.aux_hor_data
             );
             if (n_vectors_not_pruned) {

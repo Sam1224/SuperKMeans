@@ -19,8 +19,9 @@ from fastkmeans import FastKMeans
 if __name__ == "__main__":
     num_dimensions = 1024
     num_vectors = 262144
-    num_centroids = 4096
+    num_centroids = 1024
     threads = 10
+    n_iter = 25
 
     data = np.fromfile("data_mxbai.bin", dtype=np.float32).reshape(num_vectors, num_dimensions)
     data = data.astype(np.float32)
@@ -30,9 +31,10 @@ if __name__ == "__main__":
         n_clusters=num_centroids,
         init='random',
         n_init=1,
-        max_iter=10,
+        max_iter=n_iter,
         verbose=1,
-        random_state=1
+        random_state=42,
+        copy_x=True
     )
     km.fit(data)
     end = time.time()
@@ -42,7 +44,7 @@ if __name__ == "__main__":
     kmeans = FastKMeans(
         d=num_dimensions,
         k=num_centroids,
-        niter=10,
+        niter=n_iter,
         tol=-math.inf,
         device='cpu',
         seed=42,
