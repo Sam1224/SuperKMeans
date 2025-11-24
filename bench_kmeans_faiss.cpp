@@ -16,10 +16,11 @@ int main(int argc, char* argv[]) {
     omp_set_num_threads(THREADS);
 
     // SKMeans
-    const int n = 262144;
+    // const int n = 262144;
+    const int n = 150000;
     // const int n = 720896;
     const int d = 1024;
-    int n_clusters = 4096;
+    int n_clusters = 2048;
     int n_iters = 25;
     float sampling_fraction = 1.0;
 

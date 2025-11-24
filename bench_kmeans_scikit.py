@@ -19,7 +19,7 @@ from fastkmeans import FastKMeans
 if __name__ == "__main__":
     num_dimensions = 1024
     num_vectors = 262144
-    num_centroids = 1024
+    num_centroids = 4096
     threads = 10
     n_iter = 25
 
