@@ -594,7 +594,15 @@ class SuperKMeans {
         const auto jumps = static_cast<size_t>(std::floor(1.0 * n / _n_clusters));
         auto tmp_centroids_p = _tmp_centroids.data();
         // Equidistant sampling similar to DuckDB's
-        for (size_t i = 0; i < n; i += jumps) {
+        // for (size_t i = 0; i < n; i += jumps) {
+        //     // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
+        //     memcpy(
+        //         (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
+        //     );
+        //     tmp_centroids_p += _d;
+        // }
+        // First `n` samples similar to FAISS'
+        for (size_t i = 0; i < _n_clusters; i += 1) {
             // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
             memcpy(
                 (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
