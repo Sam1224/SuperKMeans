@@ -45,17 +45,19 @@ class PDXLayout {
         searcher = std::make_unique<searcher_t>(*index, pruner);
     }
 
-    // TODO(@lkuffo, low): Support arbitrary cluster sizes rather than always 64
     void FromBufferToPDXIndex(
         scalar_t* SKM_RESTRICT pdx_data,
         const size_t n_points,
         const size_t d
     ) {
-        // TODO(@lkuffo, high): Support cluster sizes that are not multiples of 64
-        assert(n_points % VECTOR_CHUNK_SIZE == 0);
-
         auto [horizontal_d, vertical_d] = GetDimensionSplit(d);
         size_t n_pdx_clusters = n_points / VECTOR_CHUNK_SIZE;
+        const size_t full_clusters = n_points / VECTOR_CHUNK_SIZE;
+        const size_t n_remaining = n_points % VECTOR_CHUNK_SIZE;
+        if (n_remaining) {
+            n_pdx_clusters++;
+        }
+
         index->num_clusters = n_pdx_clusters;
         // TODO(@lkuffo, high): Does this belong here?
         // Seems to important to define the centroid ids here
@@ -69,14 +71,18 @@ class PDXLayout {
         index->clusters.resize(n_pdx_clusters);
         auto pdx_data_p = pdx_data;
         size_t cluster_idx = 0;
-        for (size_t cluster_offset = 0; cluster_offset < n_points;
-             cluster_offset += VECTOR_CHUNK_SIZE) {
+        for (; cluster_idx < full_clusters; cluster_idx++) {
             cluster_t& cluster = index->clusters[cluster_idx];
             cluster.num_embeddings = VECTOR_CHUNK_SIZE;
             cluster.data = pdx_data_p;
-            cluster.indices = centroid_ids.data() + cluster_offset;
+            cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
             pdx_data_p += VECTOR_CHUNK_SIZE * d;
-            cluster_idx += 1;
+        }
+        if (n_remaining) {
+            cluster_t& cluster = index->clusters[cluster_idx];
+            cluster.num_embeddings = n_remaining;
+            cluster.data = pdx_data_p;
+            cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
         }
     }
 
@@ -86,11 +92,14 @@ class PDXLayout {
         const size_t d,
         scalar_t* SKM_RESTRICT hor_data
     ) {
-        // TODO(@lkuffo, high): Support cluster sizes that are not multiples of 64
-        assert(n_points % VECTOR_CHUNK_SIZE == 0);
-
         auto [horizontal_d, vertical_d] = GetDimensionSplit(d);
         size_t n_pdx_clusters = n_points / VECTOR_CHUNK_SIZE;
+        const size_t full_clusters = n_points / VECTOR_CHUNK_SIZE;
+        const size_t n_remaining = n_points % VECTOR_CHUNK_SIZE;
+        if (n_remaining) {
+            n_pdx_clusters++;
+        }
+
         index->num_clusters = n_pdx_clusters;
         // TODO(@lkuffo, high): Does this belong here?
         // Seems to important to define the centroid ids here
@@ -105,23 +114,27 @@ class PDXLayout {
         auto pdx_data_p = pdx_data;
         auto hor_data_p = hor_data;
         size_t cluster_idx = 0;
-        for (size_t cluster_offset = 0; cluster_offset < n_points;
-             cluster_offset += VECTOR_CHUNK_SIZE) {
+        for (; cluster_idx < full_clusters; cluster_idx++) {
             cluster_t& cluster = index->clusters[cluster_idx];
             cluster.num_embeddings = VECTOR_CHUNK_SIZE;
             cluster.data = pdx_data_p;
-            cluster.indices = centroid_ids.data() + cluster_offset;
+            cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
             cluster.aux_hor_data = hor_data_p;
             pdx_data_p += VECTOR_CHUNK_SIZE * d;
             hor_data_p += VECTOR_CHUNK_SIZE * (vertical_d); // Contains only the vertical dimensions
-            cluster_idx += 1;
+        }
+        if (n_remaining) {
+            cluster_t& cluster = index->clusters[cluster_idx];
+            cluster.num_embeddings = n_remaining;
+            cluster.data = pdx_data_p;
+            cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
+            cluster.aux_hor_data = hor_data_p;
         }
     }
 
     /**
      * @brief Get number of vertical and horizontal dimensions. We will try to split 25% to
-     * vertical and 75% to horizontal. This function will always achieve horizontal blocks
-     * of 64 values
+     * vertical and 75% to horizontal.
      *
      * @param d Number of dimensions (cols) in the data
      * @return void
@@ -167,13 +180,15 @@ class PDXLayout {
         const size_t d
     ) {
         using scalar_t = skmeans_value_t<q>;
-        assert(n % CHUNK_SIZE == 0);
 
         auto [horizontal_d, vertical_d] = GetDimensionSplit(d);
 
+        const size_t full_chunks = n / CHUNK_SIZE;
+        const size_t n_remaining = n % CHUNK_SIZE;
         // TODO(@lkuffo, high): Parallelize
-        for (size_t i = 0; i < n; i += CHUNK_SIZE) {
-            auto chunk_offset = i * d; // Chunk offset is the same in both layouts
+        //for (size_t i = 0; i + CHUNK_SIZE <= n; i += CHUNK_SIZE) {
+        for (size_t i = 0; i < full_chunks; ++i) {
+            auto chunk_offset = (i * CHUNK_SIZE) * d; // Chunk offset is the same in both layouts
             const scalar_t* SKM_RESTRICT chunk_p = in_vectors + chunk_offset;
             scalar_t* SKM_RESTRICT out_chunk_p = out_pdx_vectors + chunk_offset;
             if constexpr (FULLY_TRANSPOSED) {
@@ -199,6 +214,36 @@ class PDXLayout {
                         out_h(out_chunk_p, CHUNK_SIZE, H_DIM_SIZE);
                     out_h.noalias() = in.block(0, vertical_d + j, CHUNK_SIZE, H_DIM_SIZE);
                     out_chunk_p += CHUNK_SIZE * H_DIM_SIZE;
+                }
+            }
+        }
+        if (n_remaining) {
+            auto chunk_offset = (full_chunks * CHUNK_SIZE) * d; // Chunk offset is the same in both layouts
+            const scalar_t* SKM_RESTRICT chunk_p = in_vectors + chunk_offset;
+            scalar_t* SKM_RESTRICT out_chunk_p = out_pdx_vectors + chunk_offset;
+            if constexpr (FULLY_TRANSPOSED) {
+                Eigen::Map<
+                    const Eigen::Matrix<scalar_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                    in(chunk_p, n_remaining, d);
+                Eigen::Map<Eigen::Matrix<scalar_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                    out(out_chunk_p, d, n_remaining);
+                out.noalias() = in.transpose();
+            } else {
+                // Vertical Block
+                Eigen::Map<
+                    const Eigen::Matrix<scalar_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                    in(chunk_p, n_remaining, d);
+                Eigen::Map<Eigen::Matrix<scalar_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                    out(out_chunk_p, vertical_d, n_remaining);
+                out.noalias() = in.leftCols(vertical_d).transpose();
+                out_chunk_p += n_remaining * vertical_d;
+
+                // Horizontal Blocks
+                for (size_t j = 0; j < horizontal_d; j += H_DIM_SIZE) {
+                    Eigen::Map<Eigen::Matrix<scalar_t, Eigen::Dynamic, H_DIM_SIZE, Eigen::RowMajor>>
+                        out_h(out_chunk_p, n_remaining, H_DIM_SIZE);
+                    out_h.noalias() = in.block(0, vertical_d + j, n_remaining, H_DIM_SIZE);
+                    out_chunk_p += n_remaining * H_DIM_SIZE;
                 }
             }
         }

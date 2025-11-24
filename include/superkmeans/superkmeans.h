@@ -48,8 +48,6 @@ class SuperKMeans {
         SKMEANS_ENSURE_POSITIVE(iters);
         SKMEANS_ENSURE_POSITIVE(sampling_fraction);
         SKMEANS_ENSURE_POSITIVE(dimensionality);
-        // TODO(@lkuffo, low): Support non-multiples of 64
-        assert(n_clusters % 64 == 0);
         if (sampling_fraction > 1.0) {
             throw std::invalid_argument("sampling_fraction must be smaller than 1");
         }

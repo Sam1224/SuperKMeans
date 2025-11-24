@@ -149,11 +149,12 @@ class BatchComputer<l2, f32> {
         }
     };
 
-    template <bool RECORD_PRUNING_GROUP=false>
+    template <bool RECORD_PRUNING_GROUP = false>
     static void Batched_XRowMajor_YRowMajor_MultiplePartialD(
         const data_t* SKM_RESTRICT x,
         const data_t* SKM_RESTRICT y,
-        const data_t* SKM_RESTRICT prev_y, // TODO(lkuffo, crit): Is not previous but current (variable name is confusing)
+        const data_t* SKM_RESTRICT
+            prev_y, // TODO(lkuffo, crit): Is not previous but current (variable name is confusing)
         const size_t n_x,
         const size_t n_y,
         const size_t d,
@@ -196,7 +197,6 @@ class BatchComputer<l2, f32> {
                     batch_n_y = n_y - j;
                 }
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
-
                 cur_blas_tt.Tic();
                 blas_tt.Tic();
                 Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
@@ -223,8 +223,10 @@ class BatchComputer<l2, f32> {
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     auto data_p = x + (i_idx * d);
-                    const auto prev_assignment = out_knn[i_idx]; // Note that this will take the KNN from the previous batch loop
-                    // TODO(lkuffo, crit): In that sense, we can avoid this if j > 0, and just use out_distances[i_idx], since this will
+                    const auto prev_assignment = out_knn[i_idx]; // Note that this will take the KNN
+                                                                 // from the previous batch loop
+                    // TODO(lkuffo, crit): In that sense, we can avoid this if j > 0, and just use
+                    // out_distances[i_idx], since this will
                     //   always have the right distance
                     distance_t dist_to_prev_centroid;
                     if (j == 0) {
@@ -240,30 +242,40 @@ class BatchComputer<l2, f32> {
                     if constexpr (RECORD_PRUNING_GROUP) {
                         auto partial_distances_p = distances_matrix.data() + r * batch_n_y;
                         assignment =
-                            pdx_centroids.searcher->Top1PartialSearchWithThresholdAndPartialDistances(
-                                data_p,
-                                dist_to_prev_centroid,
-                                prev_assignment,
-                                r,
-                                out_pruning_groups[i_idx],
-                                partial_distances_p,
-                                partial_d,
-                                j / VECTOR_CHUNK_SIZE,              // start cluster_id
-                                (j + batch_n_y) / VECTOR_CHUNK_SIZE // end cluster_id
-                            );
+                            pdx_centroids.searcher
+                                ->Top1PartialSearchWithThresholdAndPartialDistances(
+                                    data_p,
+                                    dist_to_prev_centroid,
+                                    prev_assignment,
+                                    r,
+                                    out_pruning_groups[i_idx],
+                                    partial_distances_p,
+                                    partial_d,
+                                    j / VECTOR_CHUNK_SIZE, // start cluster_id
+                                    (j + Y_BATCH_SIZE) /
+                                        VECTOR_CHUNK_SIZE // end cluster_id; We use Y_BATCH_SIZE and
+                                                          // not batch_n_y because otherwise we
+                                                          // would not go up until incomplete
+                                                          // clusters
+                                );
                     } else {
                         auto partial_distances_p = distances_matrix.data() + r * batch_n_y;
                         assignment =
-                            pdx_centroids.searcher->Top1PartialSearchWithThresholdAndPartialDistances(
-                                data_p,
-                                dist_to_prev_centroid,
-                                prev_assignment,
-                                r,
-                                partial_distances_p,
-                                partial_d,
-                                j / VECTOR_CHUNK_SIZE,              // start cluster_id
-                                (j + batch_n_y) / VECTOR_CHUNK_SIZE // end cluster_id
-                            );
+                            pdx_centroids.searcher
+                                ->Top1PartialSearchWithThresholdAndPartialDistances(
+                                    data_p,
+                                    dist_to_prev_centroid,
+                                    prev_assignment,
+                                    r,
+                                    partial_distances_p,
+                                    partial_d,
+                                    j / VECTOR_CHUNK_SIZE, // start cluster_id
+                                    (j + Y_BATCH_SIZE) /
+                                        VECTOR_CHUNK_SIZE // end cluster_id; We use Y_BATCH_SIZE and
+                                                          // not batch_n_y because otherwise we
+                                                          // would not go up until incomplete
+                                                          // clusters
+                                );
                     }
                     auto [assignment_idx, assignment_distance] = assignment;
                     out_knn[i_idx] = assignment_idx;
@@ -271,15 +283,14 @@ class BatchComputer<l2, f32> {
                 }
                 pdx_tt.Toc();
                 cur_pdx_tt.Toc();
-
             }
-            if constexpr(RECORD_PRUNING_GROUP) {
+            if constexpr (RECORD_PRUNING_GROUP) {
                 float num_centroids_norm = 1.0 / pdx_centroids.searcher->pdx_data.num_clusters;
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     out_pruning_groups[i_idx] *= num_centroids_norm;
-                    out_pruning_groups[i_idx] =  CeilXToMultipleOfM(out_pruning_groups[i_idx], 32);
-                    //std::cout << out_pruning_groups[i_idx] << std::endl;
+                    out_pruning_groups[i_idx] = CeilXToMultipleOfM(out_pruning_groups[i_idx], 32);
+                    // std::cout << out_pruning_groups[i_idx] << std::endl;
                 }
             }
         }
@@ -288,7 +299,7 @@ class BatchComputer<l2, f32> {
         // pdx_centroids.searcher->PrintPrunedPositions();
     }
 
-    template <bool RECORD_PRUNING_GROUP=false>
+    template <bool RECORD_PRUNING_GROUP = false>
     static void Batched_XRowMajor_YRowMajor_PartialD(
         const data_t* SKM_RESTRICT x,
         const data_t* SKM_RESTRICT y,
@@ -343,8 +354,10 @@ class BatchComputer<l2, f32> {
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     auto data_p = x + (i_idx * d);
-                    const auto prev_assignment = out_knn[i_idx]; // Note that this will take the KNN from the previous batch loop
-                    // TODO(lkuffo, crit): In that sense, we can avoid this if j > 0, and just use out_distances[i_idx], since this will
+                    const auto prev_assignment = out_knn[i_idx]; // Note that this will take the KNN
+                                                                 // from the previous batch loop
+                    // TODO(lkuffo, crit): In that sense, we can avoid this if j > 0, and just use
+                    // out_distances[i_idx], since this will
                     //   always have the right distance
                     const distance_t dist_to_prev_centroid = DistanceComputer<l2, f32>::Horizontal(
                         prev_y + (prev_assignment * d), data_p, d
@@ -358,22 +371,30 @@ class BatchComputer<l2, f32> {
                             prev_assignment,
                             r,
                             out_pruning_groups[i_idx],
-                            j / VECTOR_CHUNK_SIZE,              // start cluster_id
-                            (j + batch_n_y) / VECTOR_CHUNK_SIZE // end cluster_id
+                            j / VECTOR_CHUNK_SIZE, // start cluster_id
+                            (j + Y_BATCH_SIZE) /
+                                VECTOR_CHUNK_SIZE // end cluster_id; We use Y_BATCH_SIZE and
+                                                  // not batch_n_y because otherwise we
+                                                  // would not go up until incomplete
+                                                  // clusters
                         );
                     } else {
                         auto partial_distances_p = distances_matrix.data() + r * batch_n_y;
-                        assignment =
-                            pdx_centroids.searcher->Top1PartialSearchWithThresholdAndPartialDistances(
-                                data_p,
-                                dist_to_prev_centroid,
-                                prev_assignment,
-                                r,
-                                partial_distances_p,
-                                partial_d,
-                                j / VECTOR_CHUNK_SIZE,              // start cluster_id
-                                (j + batch_n_y) / VECTOR_CHUNK_SIZE // end cluster_id
-                            );
+                        assignment = pdx_centroids.searcher
+                                         ->Top1PartialSearchWithThresholdAndPartialDistances(
+                                             data_p,
+                                             dist_to_prev_centroid,
+                                             prev_assignment,
+                                             r,
+                                             partial_distances_p,
+                                             partial_d,
+                                             j / VECTOR_CHUNK_SIZE, // start cluster_id
+                                             (j + Y_BATCH_SIZE) /
+                                                 VECTOR_CHUNK_SIZE // We use Y_BATCH_SIZE and
+                                                                   // not batch_n_y because
+                                                                   // otherwise we would not go up
+                                                                   // until incomplete clusters
+                                         );
                     }
                     auto [assignment_idx, assignment_distance] = assignment;
                     out_knn[i_idx] = assignment_idx;
@@ -381,12 +402,13 @@ class BatchComputer<l2, f32> {
                 }
                 pdx_tt.Toc();
             }
-            if constexpr(RECORD_PRUNING_GROUP) {
+            if constexpr (RECORD_PRUNING_GROUP) {
                 float num_centroids_norm = 1.0 / pdx_centroids.searcher->pdx_data.num_clusters;
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     out_pruning_groups[i_idx] *= num_centroids_norm;
-                    out_pruning_groups[i_idx] = static_cast<uint32_t>(std::ceil(out_pruning_groups[i_idx] / 16.0f) * 16.0f);
+                    out_pruning_groups[i_idx] =
+                        static_cast<uint32_t>(std::ceil(out_pruning_groups[i_idx] / 16.0f) * 16.0f);
                     // std::cout << out_pruning_groups[i_idx] << std::endl;
                 }
             }
