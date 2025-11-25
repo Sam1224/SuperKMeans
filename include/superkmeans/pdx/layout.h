@@ -182,6 +182,7 @@ class PDXLayout {
         using scalar_t = skmeans_value_t<q>;
 
         auto [horizontal_d, vertical_d] = GetDimensionSplit(d);
+        assert(horizontal_d % H_DIM_SIZE == 0);
 
         const size_t full_chunks = n / CHUNK_SIZE;
         const size_t n_remaining = n % CHUNK_SIZE;
@@ -198,6 +199,7 @@ class PDXLayout {
                     out(out_chunk_p, d, CHUNK_SIZE);
                 out.noalias() = in.transpose();
             } else {
+                std::cout << "Vertical D: " << vertical_d << " H: " << horizontal_d << std::endl;
                 // Vertical Block
                 Eigen::Map<
                     const Eigen::Matrix<scalar_t, CHUNK_SIZE, Eigen::Dynamic, Eigen::RowMajor>>
@@ -247,28 +249,6 @@ class PDXLayout {
             }
         }
     }
-
-    template <bool FULLY_TRANSPOSED = false>
-    static inline void UpdateSum(
-        scalar_t* SKM_RESTRICT pdx_data,
-        const scalar_t* SKM_RESTRICT vector,
-        const size_t position,
-        const size_t n_points,
-        const size_t d,
-        const size_t horizontal_d,
-        const size_t vertical_d
-    ) {
-        // Calculate Position
-        // Apply operand
-        //
-    }
-
-    SKM_ALWAYS_INLINE static size_t OffsetCalculator(
-        const size_t vector_position,
-        const size_t d,
-        const size_t horizontal_d,
-        const size_t vertical_d
-    ) {}
 
     template <typename T>
     static bool CheckBlockTranspose(const T* in_vectors, const T* out_vectors, size_t n, size_t d) {

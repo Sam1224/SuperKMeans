@@ -51,7 +51,7 @@ class SuperKMeans {
         if (sampling_fraction > 1.0) {
             throw std::invalid_argument("sampling_fraction must be smaller than 1");
         }
-        _pruner = std::make_unique<Pruner>(dimensionality, 1.5);
+        _pruner = std::make_unique<Pruner>(dimensionality, 1.5); // TODO(@lkuffo, crit): Remove magic number
     }
 
     /**
@@ -108,6 +108,10 @@ class SuperKMeans {
         }
         //! _centroids and _aux_hor_centroids are always wrapped with the PDXLayout object
         _vertical_d = PDXLayout<q, alpha, Pruner>::GetDimensionSplit(_d).vertical_d;
+        std::cout << "D: " << _d << std::endl;
+        std::cout << "Vertical D: " << _vertical_d << std::endl;
+        std::cout << "Horizontal D: " << _d - _vertical_d << std::endl;
+        std::cout << "Horizontal D: " << PDXLayout<q, alpha, Pruner>::GetDimensionSplit(_d).horizontal_d << std::endl;
         _allocator_time.Tic();
         _aux_hor_centroids.resize(_n_clusters * _vertical_d);
         _allocator_time.Toc();
@@ -126,6 +130,7 @@ class SuperKMeans {
         std::vector<centroid_value_t> rotated_initial_centroids(_n_clusters * _d);
         _allocator_time.Toc();
         _rotator_time.Tic();
+        std::cout << "Rotating..." << std::endl;
         _pruner->Rotate(_tmp_centroids.data(), rotated_initial_centroids.data(), _n_clusters);
         _rotator_time.Toc();
 
@@ -936,6 +941,7 @@ class SuperKMeans {
             data_samples_buffer.resize(_n_samples * _d);
             _allocator_time.Toc();
             _rotator_time.Tic();
+            std::cout << "Rotating 1..." << std::endl;
             _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), _n_samples);
             _rotator_time.Toc();
             return data_samples_buffer.data();
@@ -973,7 +979,7 @@ class SuperKMeans {
     size_t _n_samples;
     size_t _n_split;
     uint32_t N_THREADS;
-    uint32_t _initial_partial_d = 128;
+    uint32_t _initial_partial_d = 32;
     uint32_t _n_pruning_groups = 1;
     uint32_t _vertical_d;
     float tol;

@@ -1,6 +1,8 @@
 #ifndef SKMEANS_ADSAMPLING_HPP
 #define SKMEANS_ADSAMPLING_HPP
 
+#include "superkmeans/pdx/utils.h"
+
 #include <Eigen/Eigen/Dense>
 #include <queue>
 #ifdef HAS_FFTW
@@ -119,7 +121,7 @@ class ADSamplingPruner {
     }
 
     void FlipSign(const float* SKM_RESTRICT data, float* SKM_RESTRICT out, const size_t n) {
-#pragma omp parallel for num_threads(14)
+#pragma omp parallel for num_threads(10)
         for (size_t i = 0; i < n; ++i) {
             const auto offset = i * num_dimensions;
             size_t j = 0;
@@ -155,8 +157,12 @@ class ADSamplingPruner {
             fftwf_init_threads();
             fftwf_plan_with_nthreads(10);
             int n0 = static_cast<int>(num_dimensions); // length of each 1D transform
-            int howmany = static_cast<int>(n);         // number of transforms (one per row)
+            int howmany = static_cast<int>(n); // number of transforms (one per row)
             fftw_r2r_kind kind[1] = {FFTW_REDFT10};
+            auto flag = FFTW_MEASURE;
+            if (IsPowerOf2(num_dimensions)) { // TODO(@lkuffo, crit): Check if this is correct
+                flag = FFTW_ESTIMATE;
+            }
             fftwf_plan plan = fftwf_plan_many_r2r(
                 1,
                 &n0,
@@ -170,7 +176,7 @@ class ADSamplingPruner {
                 1,
                 n0, /*onembed, ostride, odist*/
                 kind,
-                FFTW_ESTIMATE
+                flag
             );
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);

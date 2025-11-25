@@ -176,13 +176,13 @@ class BatchComputer<l2, f32> {
         TicToc cur_pdx_tt;
         size_t cur_group_idx = 0;
         uint32_t partial_d = pruning_groups_partial_d[cur_group_idx];
-        // std::cout << "New partial_d: " << partial_d << " at 0" << std::endl;
+        std::cout << "New partial_d: " << partial_d << " at 0" << std::endl;
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
             if (i >= pruning_groups_ranges[cur_group_idx]) {
                 assert(i == pruning_groups_ranges[cur_group_idx]); // TODO(@lkuffo, crit): delete
                 cur_group_idx++;
                 partial_d = pruning_groups_partial_d[cur_group_idx];
-                // std::cout << "New partial_d: " << partial_d << " at " << i << std::endl;
+                std::cout << "New partial_d: " << partial_d << " at " << i << std::endl;
                 norms_y += n_y;
             }
             auto batch_n_x = X_BATCH_SIZE;
@@ -289,7 +289,7 @@ class BatchComputer<l2, f32> {
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     out_pruning_groups[i_idx] *= num_centroids_norm;
-                    out_pruning_groups[i_idx] = CeilXToMultipleOfM(out_pruning_groups[i_idx], 32);
+                    out_pruning_groups[i_idx] = CeilXToMultipleOfM(out_pruning_groups[i_idx], 16);
                     // std::cout << out_pruning_groups[i_idx] << std::endl;
                 }
             }
@@ -299,122 +299,6 @@ class BatchComputer<l2, f32> {
         // pdx_centroids.searcher->PrintPrunedPositions();
     }
 
-    template <bool RECORD_PRUNING_GROUP = false>
-    static void Batched_XRowMajor_YRowMajor_PartialD(
-        const data_t* SKM_RESTRICT x,
-        const data_t* SKM_RESTRICT y,
-        const data_t* SKM_RESTRICT prev_y,
-        const size_t n_x,
-        const size_t n_y,
-        const size_t d,
-        const norms_t* SKM_RESTRICT norms_x,
-        const norms_t* SKM_RESTRICT norms_y,
-        uint32_t* SKM_RESTRICT out_knn,
-        distance_t* SKM_RESTRICT out_distances,
-        uint32_t* SKM_RESTRICT out_pruning_groups,
-        float* SKM_RESTRICT all_distances_buf,
-        const layout_t& pdx_centroids,
-        const uint32_t partial_d,
-        TicToc& blas_tt,
-        TicToc& pdx_tt
-    ) {
-        for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
-            auto batch_n_x = X_BATCH_SIZE;
-            auto batch_x_p = x + (i * d);
-            if (i + X_BATCH_SIZE > n_x) {
-                batch_n_x = n_x - i;
-            }
-            for (size_t j = 0; j < n_y; j += Y_BATCH_SIZE) {
-                auto batch_n_y = Y_BATCH_SIZE;
-                auto batch_y_p = y + (j * d);
-                if (j + Y_BATCH_SIZE > n_y) {
-                    batch_n_y = n_y - j;
-                }
-                blas_tt.Tic();
-                Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
-                Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
-                Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
-                if constexpr (!RECORD_PRUNING_GROUP) {
-                    distances_matrix.noalias() =
-                        x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
-#pragma omp parallel for num_threads(14)
-                    for (size_t r = 0; r < batch_n_x; ++r) {
-                        const auto i_idx = i + r;
-                        const float norm_x_i = norms_x[i_idx];
-                        float* row_p = distances_matrix.data() + r * batch_n_y;
-#pragma clang loop vectorize(enable)
-                        for (size_t c = 0; c < batch_n_y; ++c) {
-                            row_p[c] = -2.0f * row_p[c] + norm_x_i + norms_y[j + c];
-                        }
-                    }
-                }
-                blas_tt.Toc();
-                pdx_tt.Tic();
-#pragma omp parallel for num_threads(10)
-                for (size_t r = 0; r < batch_n_x; ++r) {
-                    const auto i_idx = i + r;
-                    auto data_p = x + (i_idx * d);
-                    const auto prev_assignment = out_knn[i_idx]; // Note that this will take the KNN
-                                                                 // from the previous batch loop
-                    // TODO(lkuffo, crit): In that sense, we can avoid this if j > 0, and just use
-                    // out_distances[i_idx], since this will
-                    //   always have the right distance
-                    const distance_t dist_to_prev_centroid = DistanceComputer<l2, f32>::Horizontal(
-                        prev_y + (prev_assignment * d), data_p, d
-                    );
-                    // PDXearch per vector
-                    knn_candidate_t assignment;
-                    if constexpr (RECORD_PRUNING_GROUP) {
-                        assignment = pdx_centroids.searcher->Top1SearchWithThreshold(
-                            data_p,
-                            dist_to_prev_centroid,
-                            prev_assignment,
-                            r,
-                            out_pruning_groups[i_idx],
-                            j / VECTOR_CHUNK_SIZE, // start cluster_id
-                            (j + Y_BATCH_SIZE) /
-                                VECTOR_CHUNK_SIZE // end cluster_id; We use Y_BATCH_SIZE and
-                                                  // not batch_n_y because otherwise we
-                                                  // would not go up until incomplete
-                                                  // clusters
-                        );
-                    } else {
-                        auto partial_distances_p = distances_matrix.data() + r * batch_n_y;
-                        assignment = pdx_centroids.searcher
-                                         ->Top1PartialSearchWithThresholdAndPartialDistances(
-                                             data_p,
-                                             dist_to_prev_centroid,
-                                             prev_assignment,
-                                             r,
-                                             partial_distances_p,
-                                             partial_d,
-                                             j / VECTOR_CHUNK_SIZE, // start cluster_id
-                                             (j + Y_BATCH_SIZE) /
-                                                 VECTOR_CHUNK_SIZE // We use Y_BATCH_SIZE and
-                                                                   // not batch_n_y because
-                                                                   // otherwise we would not go up
-                                                                   // until incomplete clusters
-                                         );
-                    }
-                    auto [assignment_idx, assignment_distance] = assignment;
-                    out_knn[i_idx] = assignment_idx;
-                    out_distances[i_idx] = assignment_distance;
-                }
-                pdx_tt.Toc();
-            }
-            if constexpr (RECORD_PRUNING_GROUP) {
-                float num_centroids_norm = 1.0 / pdx_centroids.searcher->pdx_data.num_clusters;
-                for (size_t r = 0; r < batch_n_x; ++r) {
-                    const auto i_idx = i + r;
-                    out_pruning_groups[i_idx] *= num_centroids_norm;
-                    out_pruning_groups[i_idx] =
-                        static_cast<uint32_t>(std::ceil(out_pruning_groups[i_idx] / 16.0f) * 16.0f);
-                    // std::cout << out_pruning_groups[i_idx] << std::endl;
-                }
-            }
-        }
-        // pdx_centroids.searcher->PrintPrunedPositions();
-    };
 };
 
 } // namespace skmeans

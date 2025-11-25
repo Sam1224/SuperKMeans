@@ -210,6 +210,8 @@ class PDXearch {
         size_t cur_n_vectors_not_pruned = 0;
         size_t current_vertical_dimension = current_dimension_idx;
         size_t current_horizontal_dimension = 0;
+        // std::cout << pdx_data.num_horizontal_dimensions << "\n";
+        // std::cout << pdx_data.num_vertical_dimensions << "\n";
         while (pdx_data.num_horizontal_dimensions && n_vectors_not_pruned &&
                current_horizontal_dimension < pdx_data.num_horizontal_dimensions) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
@@ -232,10 +234,10 @@ class PDXearch {
             current_dimension_idx += H_DIM_SIZE;
             if (is_adsampling)
                 GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
-            // assert(
-            //     current_dimension_idx == current_vertical_dimension +
-            //     current_horizontal_dimension
-            // );
+            assert(
+                current_dimension_idx == current_vertical_dimension +
+                current_horizontal_dimension
+            );
             EvaluatePruningPredicateOnPositionsArray<Q>(
                 cur_n_vectors_not_pruned,
                 n_vectors_not_pruned,
@@ -244,14 +246,12 @@ class PDXearch {
                 pruning_distances
             );
         }
-        // std::cout << current_vertical_dimension << std::endl;
         // GO THROUGH THE REST IN THE VERTICAL
         while (n_vectors_not_pruned && current_vertical_dimension < pdx_data.num_vertical_dimensions
         ) {
-            //std::cout << "SHOULD NOT BE " << std::endl;
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
             if (aux_data == nullptr) {
-                // std::cout << "SHOULD NOT BE HERE\n";
+                std::cout << "NOT RIGHT?" << std::endl;
                 size_t last_dimension_to_test_idx = std::min(
                     current_vertical_dimension + H_DIM_SIZE,
                     (size_t) pdx_data.num_vertical_dimensions
@@ -276,7 +276,7 @@ class PDXearch {
                 // We go till the end
                 size_t dimensions_left =
                     pdx_data.num_vertical_dimensions - current_vertical_dimension;
-                // std::cout << dimensions_left << std::endl;
+                // std::cout << "Dims left" << dimensions_left << std::endl;
                 size_t offset_query = current_vertical_dimension;
                 for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                     size_t v_idx = pruning_positions[vector_idx];
@@ -350,9 +350,9 @@ class PDXearch {
         if constexpr (q == u8) {
             best_candidate.distance = best_candidate.distance * inverse_scale_factor;
         } else if constexpr (q == f32) {
-            best_candidate.distance = best_candidate.distance;
+            best_candidate.distance = best_candidate.distance; // TODO: REMOVE
         }
-        best_candidate.index = best_candidate.index;
+        best_candidate.index = best_candidate.index; // TODO: REMOVE
     }
 
   public:
@@ -465,6 +465,7 @@ class PDXearch {
         top_embedding.distance = prev_pruning_threshold;
 
         current_dimension_idx = computed_distance_until;
+        // std::cout << "Computed distance " << computed_distance_until << std::endl;
         n_vectors_not_pruned = 0;
         current_cluster = 0;
         // PDXearch core

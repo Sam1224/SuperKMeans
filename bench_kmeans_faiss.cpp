@@ -2,9 +2,9 @@
 #define EIGEN_USE_THREADS
 
 #include <iostream>
+#include <omp.h>
 #include <random>
 #include <vector>
-#include <omp.h>
 
 #include <faiss/Clustering.h>
 #include <faiss/IndexFlat.h>
@@ -12,21 +12,45 @@
 #include "superkmeans/nanobench.h"
 
 int main(int argc, char* argv[]) {
-    constexpr size_t THREADS = 14;
-    omp_set_num_threads(THREADS);
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("sift");
 
-    // SKMeans
-    // const int n = 262144;
-    const int n = 150000;
-    // const int n = 720896;
-    const int d = 1024;
-    int n_clusters = 5000;
+    const std::unordered_map<std::string, std::pair<int, int>> dataset_params = {
+        {"mxbai", {769382, 1024}},
+        {"openai", {999000, 1536}},
+        {"arxiv", {2253000, 768}},
+        {"sift", {1000000, 128}},
+        {"fmnist", {60000, 784}}
+    };
+
+    auto it = dataset_params.find(dataset);
+    if (it == dataset_params.end()) {
+        std::cerr << "Unknown dataset '" << dataset << "'\n";
+        std::cerr << "Known datasets: mxbai, openai, arxiv, sift, fmnist\n";
+        return 1;
+    }
+
+    const int n = it->second.first;
+    const int d = it->second.second;
+    const int n_clusters =
+        std::max<int>(1u, static_cast<int>(std::sqrt(static_cast<double>(n)) * 4.0));
     int n_iters = 25;
     float sampling_fraction = 1.0;
+    constexpr size_t THREADS = 10;
+    omp_set_num_threads(THREADS);
+    std::string path_root = std::string(CMAKE_SOURCE_DIR);
+    std::string filename = path_root + "/data_" + dataset + ".bin";
 
-    std::vector<float> data(n * d);
-    std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_mxbai.bin", std::ios::binary);
-    //std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_random.bin", std::ios::binary);
+    std::cout << "Dataset: " << dataset << " (n=" << n << ", d=" << d << ")\n";
+
+    std::vector<float> data;
+    try {
+        data.resize(n * d);
+    } catch (const std::bad_alloc& e) {
+        std::cerr << "Failed to allocate data vector for n*d = " << (n * d) << ": " << e.what()
+                  << "\n";
+        return 1;
+    }
+    std::ifstream file(filename, std::ios::binary);
     if (!file) {
         std::cerr << "Failed to open " << std::endl;
         return 1;
@@ -38,8 +62,8 @@ int main(int argc, char* argv[]) {
 
     // Set up clustering parameters
     faiss::ClusteringParameters cp;
-    cp.niter = n_iters;        // number of k-means iterations
-    cp.verbose = true;     // print progress
+    cp.niter = n_iters; // number of k-means iterations
+    cp.verbose = true;  // print progress
 
     // Create the clustering object
     faiss::Clustering clus(d, n_clusters, cp);

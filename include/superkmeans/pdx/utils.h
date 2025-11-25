@@ -43,6 +43,10 @@ inline uint32_t FloorXToMultipleOfM(uint32_t x, uint32_t m) {
     return (m == 0) ? x : (x / m) * m;
 }
 
+inline bool IsPowerOf2(const uint32_t x) {
+    return x > 0 && (x & (x - 1)) == 0;
+}
+
 struct TicToc {
     uint64_t accum_time = 0;
     struct timespec start{};
