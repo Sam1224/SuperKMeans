@@ -62,7 +62,10 @@ class SuperKMeans {
      */
     std::vector<skmeans_centroid_value_t<q>> Train(
         const vector_value_t* SKM_RESTRICT data,
-        const size_t n
+        const size_t n,
+        const vector_value_t* SKM_RESTRICT queries = nullptr,
+        const size_t n_queries = 0,
+        const size_t objective_k = 100
     ) {
         SKMEANS_ENSURE_POSITIVE(n);
         if (_trained) {
@@ -78,6 +81,7 @@ class SuperKMeans {
         _n_samples = GetNVectorsToSample(n);
 
         _allocator_time.Tic();
+
         _centroids.resize(_n_clusters * _d);
         _tmp_centroids.resize(_n_clusters * _d);
         _prev_centroids.resize(_n_clusters * _d);
@@ -101,10 +105,8 @@ class SuperKMeans {
         }
         //! _centroids and _aux_hor_centroids are always wrapped with the PDXLayout object
         _vertical_d = PDXLayout<q, alpha, Pruner>::GetDimensionSplit(_d).vertical_d;
-        std::cout << "D: " << _d << std::endl;
         std::cout << "Vertical D: " << _vertical_d << std::endl;
         std::cout << "Horizontal D: " << _d - _vertical_d << std::endl;
-        std::cout << "Horizontal D: " << PDXLayout<q, alpha, Pruner>::GetDimensionSplit(_d).horizontal_d << std::endl;
         _allocator_time.Tic();
         _aux_hor_centroids.resize(_n_clusters * _vertical_d);
         _allocator_time.Toc();
@@ -127,9 +129,46 @@ class SuperKMeans {
         _pruner->Rotate(_tmp_centroids.data(), rotated_initial_centroids.data(), _n_clusters);
         _rotator_time.Toc();
 
-        // First iteration: Only Blas
+        // Getting norms for data and initial centroids (full norms)
         GetL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
         GetL2NormsRowMajor(rotated_initial_centroids.data(), _n_clusters, centroid_norms.data());
+
+        std::vector<vector_value_t> rotated_queries;
+        if (n_queries) {
+            // TODO(@lkuffo, crit): Set this to a percentage of the number of clusters defined as a parameter of Train()
+            _centroids_to_explore = std::max<size_t>(_n_clusters / 100, 1);
+            std::cout << " -----> Centroids to explore: " << _centroids_to_explore << std::endl;
+            if (verbose) {
+                std::cout << "Getting GT Assignments and Distances for " << n_queries << " queries..." << std::endl;
+            }
+            _allocator_time.Tic();
+            _gt_assignments.resize(n_queries * objective_k);
+            _gt_distances.resize(n_queries * objective_k);
+            _allocator_time.Toc();
+            _rotator_time.Tic();
+            // Create temporary buffer for rotated queries and rotate them
+            rotated_queries.resize(n_queries * _d);
+            _pruner->Rotate(queries, rotated_queries.data(), n_queries);
+            _rotator_time.Toc();
+            _gt_assignments_time.Tic();
+            GetGTAssignmentsAndDistances(data_to_cluster, _n_samples, rotated_queries.data(), n_queries, objective_k);
+            _gt_assignments_time.Toc();
+            std::cout << "TOTAL GT ASSIGNMENTS TIME " << _gt_assignments_time.accum_time / 1000000000.0 << std::endl;
+
+            // Print the assignments and distances of the first 10 queries
+            // if (verbose) {
+            //     std::cout << "First 10 GT Assignments and Distances:" << std::endl;
+            //     for (size_t i = 0; i < 100; ++i) {
+            //         std::cout << "Query " << i << ":" << std::endl;
+            //         for (size_t j = 0; j < objective_k; ++j) {
+            //             std::cout << "  Assignment: " << _gt_assignments[i * objective_k + j] << " Distance: " << _gt_distances[i * objective_k + j] << std::endl;
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+        }
+
+        // First iteration: Only Blas
         InitAssignAndUpdateCentroids(
             data_to_cluster,
             rotated_initial_centroids.data(),
@@ -144,11 +183,17 @@ class SuperKMeans {
         if (alpha == dp) {
             PostprocessCentroids();
         }
+        if (n_queries) {
+            _recall_time.Tic();
+            float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
+            _recall_time.Toc();
+            _recall = cur_recall;
+        }
         size_t iter_idx = 1;
         if (verbose)
             std::cout << "Iteration 1" << "/" << _iters << " | Objective: " << cost
-                      << " | Shift: " << shift << " | Split: " << _n_split << std::endl
-                      << std::endl;
+                      << " | Shift: " << shift << " | Split: " << _n_split
+                      << " | Recall: " << _recall << std::endl << std::endl;
         // End of First iteration
 
         if (_iters <= 1) {
@@ -183,8 +228,8 @@ class SuperKMeans {
             iter_idx += 1;
             if (verbose)
                 std::cout << "Iteration 2" << "/" << _iters << " | Objective: " << cost
-                          << " | Shift: " << shift << " | Split: " << _n_split << std::endl
-                          << std::endl;
+                          << " | Shift: " << shift << " | Split: " << _n_split 
+                          << " | Recall: " << _recall << std::endl << std::endl;
             // End of second iteration
             CreatePruningGroups(data_to_cluster, n);
         } else {
@@ -219,11 +264,17 @@ class SuperKMeans {
             if (alpha == dp) {
                 PostprocessCentroids();
             }
+            if (n_queries) {
+                _recall_time.Tic();
+                float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
+                _recall_time.Toc();
+                _recall = cur_recall;
+            }
             if (verbose)
                 std::cout << "Iteration " << iter_idx + 1 << "/" << _iters
                           << " | Objective: " << cost << " | Shift: " << shift
-                          << " | Split: " << _n_split << std::endl
-                          << std::endl;
+                          << " | Split: " << _n_split 
+                          << " | Recall: " << _recall << std::endl << std::endl;
         }
         //! I only need assignments if sampling_faction < 1
         if (_sampling_fraction < 1.0f) {
@@ -277,13 +328,17 @@ class SuperKMeans {
                   << _reordering_time.accum_time / total_time * 100 << "%) " << std::endl;
         std::cout << "TOTAL GROUPING TIME " << _grouping_time.accum_time / 1000000000.0 << " ("
                   << _grouping_time.accum_time / total_time * 100 << "%) " << std::endl;
+        std::cout << "TOTAL GT ASSIGNMENTS TIME " << _gt_assignments_time.accum_time / 1000000000.0 << " ("
+                  << _gt_assignments_time.accum_time / total_time * 100 << "%) " << std::endl;
+        std::cout << "TOTAL RECALL TIME " << _recall_time.accum_time / 1000000000.0 << " ("
+                  << _recall_time.accum_time / total_time * 100 << "%) " << std::endl;
         std::cout << "TOTAL (s) "
                   << (_total_search_time.accum_time + _allocator_time.accum_time +
                       _rotator_time.accum_time + _norms_calc_time.accum_time +
                       _sampling_time.accum_time + _total_centroids_update_time.accum_time +
                       _centroids_splitting.accum_time + _pdxify_time.accum_time +
                       _shift_time.accum_time + _grouping_time.accum_time +
-                      _reordering_time.accum_time) /
+                      _reordering_time.accum_time + _gt_assignments_time.accum_time) /
                          1000000000.0
                   << std::endl;
     }
@@ -560,6 +615,77 @@ class SuperKMeans {
         _shift_time.Toc();
     }
 
+    void GetGTAssignmentsAndDistances(
+        const vector_value_t* SKM_RESTRICT data,
+        const size_t n,
+        const vector_value_t* SKM_RESTRICT queries,
+        const size_t n_queries,
+        const size_t objective_k
+    ) {
+        std::vector<distance_t> tmp_distances_buffer(X_BATCH_SIZE * Y_BATCH_SIZE);
+        std::vector<distance_t> query_norms(n_queries);
+        GetL2NormsRowMajor(queries, n_queries, query_norms.data());
+        batch_computer::Batched_XRowMajor_YRowMajor_TopK(
+            queries,
+            data,
+            n_queries,
+            n,
+            _d,
+            query_norms.data(),
+            data_norms.data(),
+            objective_k,
+            _gt_assignments.data(),
+            _gt_distances.data(),
+            tmp_distances_buffer.data()
+        );
+    }
+
+    float ComputeRecall(const vector_value_t* SKM_RESTRICT queries, const size_t n_queries, const size_t objective_k, const size_t centroids_to_explore) {
+        std::vector<distance_t> tmp_distances_buffer(X_BATCH_SIZE * Y_BATCH_SIZE);
+        // TODO(@lkuffo, crit): Everytime we call this function we compute norms again and again.
+        std::vector<distance_t> query_norms(n_queries);
+        GetL2NormsRowMajor(queries, n_queries, query_norms.data());
+        std::vector<uint32_t> promising_centroids(n_queries * centroids_to_explore);
+        std::vector<distance_t> distances(n_queries * centroids_to_explore);
+        batch_computer::Batched_XRowMajor_YRowMajor_TopK(
+            queries,
+            _tmp_centroids.data(),
+            n_queries,
+            _n_clusters,
+            _d,
+            query_norms.data(),
+            centroid_norms.data(),
+            centroids_to_explore,
+            promising_centroids.data(),
+            distances.data(),
+            tmp_distances_buffer.data()
+        );
+        // For each query, compute recall@objective_k: how many of the GT clusters are found in the top-64 assignments
+        // Recall per query = (# matched GT assignments in top-64) / objective_k
+        // Final recall = average over all queries
+        float sum_recall = 0.0f;
+        for (size_t i = 0; i < n_queries; ++i) {
+            size_t found_in_query = 0;
+            // For each GT assignment for query q
+            for (size_t j = 0; j < objective_k; ++j) {
+                uint32_t gt = _gt_assignments[i * objective_k + j]; // gt is a vector index
+                // Check if this GT assignment is present in the top-64 assignments for this query
+                bool found = false;
+                for (size_t t = 0; t < centroids_to_explore; ++t) {
+                    // If a promising centroid is the same as the GT centroid assignment, then we have a match
+                    if (promising_centroids[i * centroids_to_explore + t] == _assignments[gt]) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    ++found_in_query;
+                }
+            }
+            sum_recall += static_cast<float>(found_in_query) / static_cast<float>(objective_k);
+        }
+        return sum_recall / static_cast<float>(n_queries);
+    }
     std::vector<skmeans_centroid_value_t<q>> GetCentroids() const { return _centroids; }
 
     inline size_t GetNClusters() const { return _n_clusters; }
@@ -927,6 +1053,9 @@ class SuperKMeans {
     std::vector<distance_t> _distances;
     std::vector<uint32_t> _cluster_sizes;
 
+    std::vector<uint32_t> _gt_assignments;
+    std::vector<distance_t> _gt_distances;
+
     std::vector<uint32_t> _pruning_groups;
     std::vector<uint32_t> _pruning_groups_ends;
     std::vector<uint32_t> _pruning_groups_partial_d;
@@ -950,6 +1079,8 @@ class SuperKMeans {
     uint32_t _n_pruning_groups = 1;
     uint32_t _vertical_d;
     float tol;
+    float _recall = 0.0f;
+    size_t _centroids_to_explore = 64;
 
     TicToc _grouping_time;
     TicToc _reordering_time;
@@ -968,6 +1099,8 @@ class SuperKMeans {
     TicToc _pdx_search_time;
     TicToc _shift_time;
     TicToc _blas_norms_time;
+    TicToc _gt_assignments_time;
+    TicToc _recall_time;
     float _all_search_time = 0.0;
 };
 } // namespace skmeans

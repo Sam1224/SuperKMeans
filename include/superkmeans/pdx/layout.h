@@ -199,7 +199,6 @@ class PDXLayout {
                     out(out_chunk_p, d, CHUNK_SIZE);
                 out.noalias() = in.transpose();
             } else {
-                std::cout << "Vertical D: " << vertical_d << " H: " << horizontal_d << std::endl;
                 // Vertical Block
                 Eigen::Map<
                     const Eigen::Matrix<scalar_t, CHUNK_SIZE, Eigen::Dynamic, Eigen::RowMajor>>

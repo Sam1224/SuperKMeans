@@ -12,7 +12,7 @@
 #include "superkmeans/nanobench.h"
 
 int main(int argc, char* argv[]) {
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("mxbai");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("arxiv");
 
     const std::unordered_map<std::string, std::pair<int, int>> dataset_params = {
         {"mxbai", {769382, 1024}},
@@ -64,6 +64,7 @@ int main(int argc, char* argv[]) {
     faiss::ClusteringParameters cp;
     cp.niter = n_iters; // number of k-means iterations
     cp.verbose = true;  // print progress
+    cp.max_points_per_centroid = 500;
 
     // Create the clustering object
     faiss::Clustering clus(d, n_clusters, cp);
