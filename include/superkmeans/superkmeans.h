@@ -25,8 +25,6 @@ class SuperKMeans {
     using batch_computer = BatchComputer<alpha, q>;
 
   public:
-    // TODO(lkuffo, high): If less than 128 dimensions, then do not even attempt to prune.
-    //   Just send everything to batched queries
     SuperKMeans(
         size_t n_clusters,
         size_t dimensionality,
@@ -109,8 +107,14 @@ class SuperKMeans {
         }
         //! _centroids and _aux_hor_centroids are always wrapped with the PDXLayout object
         _vertical_d = PDXLayout<q, alpha, Pruner>::GetDimensionSplit(_d).vertical_d;
+        // Ensure initial_partial_d doesn't exceed vertical_d to avoid double-counting dimensions
+        // when BLAS computes more dimensions than the vertical block contains
+        if (_initial_partial_d > _vertical_d) {
+            _initial_partial_d = _vertical_d;
+        }
         std::cout << "Vertical D: " << _vertical_d << std::endl;
         std::cout << "Horizontal D: " << _d - _vertical_d << std::endl;
+        std::cout << "Initial Partial D: " << _initial_partial_d << std::endl;
         _allocator_time.Tic();
         _aux_hor_centroids.resize(_n_clusters * _vertical_d);
         _allocator_time.Toc();
@@ -220,6 +224,8 @@ class SuperKMeans {
         if (_d < 128) {
             std::cout << " !!!!!!!!!!!!! BLAS-only path" << std::endl;
             for (; iter_idx < _iters; ++iter_idx) {
+                // Save current centroids for shift computation
+                std::copy(_tmp_centroids.begin(), _tmp_centroids.end(), _prev_centroids.begin());
                 // Recompute centroid norms for the updated centroids
                 GetL2NormsRowMajor(_tmp_centroids.data(), _n_clusters, centroid_norms.data());
                 InitAssignAndUpdateCentroids(
@@ -237,6 +243,8 @@ class SuperKMeans {
                     PostprocessCentroids();
                 }
                 if (n_queries) {
+                    // Update centroid norms to match the NEW centroids (after ConsolidateCentroids)
+                    GetL2NormsRowMajor(_tmp_centroids.data(), _n_clusters, centroid_norms.data());
                     _recall_time.Tic();
                     float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
                     _recall_time.Toc();
@@ -313,6 +321,7 @@ class SuperKMeans {
                 centroids_pdx_wrapper,
                 _n_samples
             );
+            
             ConsolidateCentroids();
             ComputeCost();
             ComputeShift();
@@ -320,6 +329,9 @@ class SuperKMeans {
                 PostprocessCentroids();
             }
             if (n_queries) {
+                // Update centroid norms with FULL norms for recall computation
+                // (PDX uses partial norms for distance computation, but recall needs full norms)
+                GetL2NormsRowMajor(_tmp_centroids.data(), _n_clusters, centroid_norms.data());
                 _recall_time.Tic();
                 float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
                 _recall_time.Toc();

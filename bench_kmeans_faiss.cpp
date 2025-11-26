@@ -1,6 +1,8 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
 #define EIGEN_USE_THREADS
 
+#include <faiss/utils/utils.h>
+
 #include <iostream>
 #include <omp.h>
 #include <random>
@@ -44,6 +46,8 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Dataset: " << dataset << " (n=" << n << ", d=" << d << ")\n";
 
+    std::cout << "Compile options: " << faiss::get_compile_options() << std::endl;
+
     std::vector<float> data;
     try {
         data.resize(n * d);
@@ -77,6 +81,4 @@ int main(int argc, char* argv[]) {
         clus.train(n, data.data(), index);
     });
     std::cout << "Obj:" << clus.iteration_stats[n_iters - 1].obj << std::endl;
-    // Print centroids
-    std::cout << "Centroids:" << std::endl;
 }
