@@ -10,7 +10,7 @@
 #include "superkmeans/distance_computers/batch_computers.h"
 #include "superkmeans/pdx/pdxearch.h"
 #include "superkmeans/pdx/utils.h"
-#include "superkmeans/profiler.hpp"
+#include "superkmeans/profiler.h"
 
 namespace skmeans {
 
@@ -23,8 +23,9 @@ namespace skmeans {
 struct SuperKMeansConfig {
     // Training parameters
     uint32_t iters = 25;                    ///< Number of k-means iterations
-    float sampling_fraction = 1.0f;        ///< Fraction of data to sample (0.0 to 1.0)
+    float sampling_fraction = 1.0f;         ///< Fraction of data to sample (0.0 to 1.0)
     uint32_t n_threads = 0;                 ///< Number of CPU threads (0 = auto-detect max)
+    uint32_t seed = 42;                     ///< Random seed for reproducibility
 
     // Convergence parameters
     float tol = 1e-8f;                      ///< Tolerance for shift-based early termination
@@ -75,7 +76,7 @@ class SuperKMeans {
         // Set thread count: 0 means auto-detect max available
         _n_threads = (_config.n_threads == 0) ? omp_get_max_threads() : _config.n_threads;
         g_n_threads = _n_threads;  // Also set global for external functions
-        _pruner = std::make_unique<Pruner>(dimensionality, PRUNER_INITIAL_THRESHOLD);
+        _pruner = std::make_unique<Pruner>(dimensionality, PRUNER_INITIAL_THRESHOLD, _config.seed);
     }
 
     /**
@@ -505,7 +506,7 @@ class SuperKMeans {
 
     void SplitClusters() {
         _n_split = 0;
-        std::default_random_engine rng(std::random_device{}());
+        std::default_random_engine rng(_config.seed);
         auto _horizontal_centroids_p = _horizontal_centroids.data();
         for (size_t ci = 0; ci < _n_clusters; ci++) {
             if (_cluster_sizes[ci] == 0) { // Need to redefine a centroid

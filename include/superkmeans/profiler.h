@@ -1,6 +1,4 @@
 #pragma once
-#ifndef SUPERKMEANS_PROFILER_HPP
-#define SUPERKMEANS_PROFILER_HPP
 
 #include <algorithm>
 #include <chrono>
@@ -295,6 +293,4 @@ private:
 #define SKM_PROFILE_STOP(name) ::skmeans::Profiler::Get().Stop(name)
 
 } // namespace skmeans
-
-#endif // SUPERKMEANS_PROFILER_HPP
 

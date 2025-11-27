@@ -25,14 +25,14 @@ class ADSamplingPruner {
     uint32_t num_dimensions;
     std::vector<float> ratios{};
 
-    ADSamplingPruner(uint32_t num_dimensions_, float epsilon0)
+    ADSamplingPruner(uint32_t num_dimensions_, float epsilon0, uint32_t seed = 42)
         : num_dimensions(num_dimensions_), epsilon0(epsilon0) {
         InitializeRatios();
+        std::mt19937 gen(seed);
         bool matrix_created = false;
 #ifdef HAS_FFTW
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
             matrix.resize(1, num_dimensions);
-            std::mt19937 gen(std::random_device{}());
             std::uniform_int_distribution<int> dist(0, 1);
             for (size_t i = 0; i < num_dimensions; ++i) {
                 matrix(i) = dist(gen) ? 1.0f : -1.0f;
@@ -47,11 +47,12 @@ class ADSamplingPruner {
 #endif
         if (!matrix_created) {
             matrix.resize(num_dimensions, num_dimensions);
-            matrix = MatrixR::NullaryExpr(num_dimensions, num_dimensions, []() {
-                static thread_local std::mt19937 gen(std::random_device{}());
-                static thread_local std::normal_distribution<float> dist(0.0f, 1.0f);
-                return dist(gen);
-            });
+            std::normal_distribution<float> dist(0.0f, 1.0f);
+            for (int i = 0; i < num_dimensions; ++i) {
+                for (int j = 0; j < num_dimensions; ++j) {
+                    matrix(i, j) = dist(gen);
+                }
+            }
             const Eigen::HouseholderQR<MatrixR> qr(matrix);
             matrix = qr.householderQ() * MatrixR::Identity(num_dimensions, num_dimensions);
         }

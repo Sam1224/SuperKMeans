@@ -6,7 +6,7 @@
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/pdx/layout.h"
-#include "superkmeans/profiler.hpp"
+#include "superkmeans/profiler.h"
 #include <Eigen/Eigen/Dense>
 
 namespace skmeans {
