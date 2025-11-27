@@ -126,10 +126,9 @@ class SuperKMeans {
             std::cout << "Sampling data..." << std::endl;
         }
 
-        // TODO(@lkuffo, low): This is bad because data_to_cluster may have one buffer or the other, objects
-        // life span is not clear
         std::vector<vector_value_t> data_samples_buffer;
-        auto data_to_cluster = SampleVectors(data_p, data_samples_buffer, n, _n_samples);
+        SampleVectors(data_p, data_samples_buffer, n, _n_samples);
+        auto data_to_cluster = data_samples_buffer.data();
 
         // TODO(@lkuffo, low): I don't like this rotated_initial_centroids variable
         std::vector<centroid_value_t> rotated_initial_centroids(_n_clusters * _d);
@@ -769,17 +768,24 @@ class SuperKMeans {
     }
 
     template <bool ROTATE = true>
-    vector_value_t* SampleVectors(
+    void SampleVectors(
         const vector_value_t* SKM_RESTRICT data,
-        std::vector<vector_value_t>& data_samples_buffer,
+        std::vector<vector_value_t>& out_buffer,
         const size_t n,
         const size_t n_samples
     ) {
-        const vector_value_t* tmp_data_buffer_p = nullptr;
+        out_buffer.resize(n_samples * _d);
+        std::cout << "n_samples: " << n_samples << std::endl;
+
+        // Intermediate buffer needed only when both sampling and rotating
+        // (rotation cannot be done in-place from sparse source indices)
         std::vector<vector_value_t> samples_tmp;
-        {
+        const vector_value_t* src_data = data;
+        
+        if (n_samples < n) {
             SKM_PROFILE_SCOPE("sampling");
-            if (n_samples < n) {
+            if constexpr (ROTATE) {
+                // Need intermediate buffer: sample first, then rotate
                 samples_tmp.resize(n_samples * _d);
                 const auto jumps = static_cast<size_t>(std::floor((1.0 * n) / n_samples));
                 for (size_t i = 0; i < n_samples; i++) {
@@ -790,30 +796,33 @@ class SuperKMeans {
                         sizeof(vector_value_t) * _d
                     );
                 }
-                tmp_data_buffer_p = samples_tmp.data();
+                src_data = samples_tmp.data();
             } else {
-                tmp_data_buffer_p = data; // Zero-copy
+                // No rotation: sample directly into output buffer
+                const auto jumps = static_cast<size_t>(std::floor((1.0 * n) / n_samples));
+                for (size_t i = 0; i < n_samples; i++) {
+                    size_t src_vector_idx = i * jumps;
+                    memcpy(
+                        (void*) (out_buffer.data() + i * _d),
+                        (void*) (data + src_vector_idx * _d),
+                        sizeof(vector_value_t) * _d
+                    );
+                }
+                return;  // Done, no rotation needed
             }
         }
 
-        std::cout << "n_samples: " << n_samples << std::endl;
-
-        // TODO(@lkuffo, supercrit): I dont like that I am returning the buffer pointer. Since we are receiving and output buffer 
-        // I would say we just scratch the logic of zero-copy, and use the output buffer directly. in that sense we dont need to return the buffer pointer.
-        data_samples_buffer.resize(n_samples * _d);
-        {
-            SKM_PROFILE_SCOPE("rotator");
-            if (ROTATE) {
-                _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), n_samples);
-            } else {
-                memcpy(
-                    (void*) data_samples_buffer.data(),
-                    (void*) tmp_data_buffer_p,
-                    sizeof(vector_value_t) * n_samples * _d
-                );
-            }
+        // Rotate or copy into output buffer
+        SKM_PROFILE_SCOPE("rotator");
+        if constexpr (ROTATE) {
+            _pruner->Rotate(src_data, out_buffer.data(), n_samples);
+        } else {
+            memcpy(
+                (void*) out_buffer.data(),
+                (void*) src_data,
+                sizeof(vector_value_t) * n_samples * _d
+            );
         }
-        return data_samples_buffer.data();
     }
 
     std::unique_ptr<Pruner> _pruner;
