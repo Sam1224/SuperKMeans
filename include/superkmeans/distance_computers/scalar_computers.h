@@ -1,7 +1,5 @@
 #pragma once
 
-#include <iostream>
-
 #include "superkmeans/common.h"
 
 namespace skmeans {
@@ -102,7 +100,7 @@ class ScalarComputer<DistanceFunction::dp, Quantization::f32> {
         distance_t* distances_p,
         const uint32_t* pruning_positions = nullptr
     ) {
-
+        throw std::runtime_error("VerticalPruning not implemented for DP");
     }
 
     // Defer to the scalar kernel
@@ -113,7 +111,7 @@ class ScalarComputer<DistanceFunction::dp, Quantization::f32> {
         size_t end_dimension,
         distance_t* distances_p
     ) {
-
+        throw std::runtime_error("Vertical not implemented for DP");
     }
 
     static distance_t Horizontal(

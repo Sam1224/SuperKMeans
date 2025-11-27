@@ -181,84 +181,6 @@ class SIMDComputer<l2, f32> {
     using data_t = DataType_t<f32>;
     using scalar_computer = ScalarComputer<l2, f32>;
 
-    alignas(64) static distance_t pruning_distances_tmp[4096];
-
-    static void GatherDistances(
-        size_t n_vectors,
-        distance_t* distances_p,
-        const uint32_t* pruning_positions
-    ) {
-        for (size_t vector_idx = 0; vector_idx < n_vectors; ++vector_idx) {
-            auto true_vector_idx = pruning_positions[vector_idx];
-            pruning_distances_tmp[vector_idx] = distances_p[true_vector_idx];
-        }
-    }
-
-    static void GatherBasedKernel(
-        const data_t* SKM_RESTRICT query,
-        const data_t* SKM_RESTRICT data,
-        size_t n_vectors,
-        size_t total_vectors,
-        size_t start_dimension,
-        size_t end_dimension,
-        distance_t* distances_p,
-        const uint32_t* pruning_positions = nullptr
-    ) {
-        GatherDistances(n_vectors, distances_p, pruning_positions);
-        __m512 data_vec, d_vec, cur_dist_vec;
-        __m256 data_vec_m256, d_vec_m256, cur_dist_vec_m256;
-        // Then we move data to be sequential
-        size_t dimensions_jump_factor = total_vectors;
-        for (size_t dimension_idx = start_dimension; dimension_idx < end_dimension;
-             ++dimension_idx) {
-            uint32_t true_dimension_idx = dimension_idx;
-            __m512 query_vec;
-            query_vec = _mm512_set1_ps(query[true_dimension_idx]);
-            //            if constexpr (L_ALPHA == IP){
-            //                query_vec = _mm512_set1_ps(-2 * query[true_dimension_idx]);
-            //            }
-            size_t offset_to_dimension_start = true_dimension_idx * dimensions_jump_factor;
-            const float* tmp_data = data + offset_to_dimension_start;
-            // Now we do the sequential distance calculation loop which would use SIMD
-            // Up to 16
-            size_t i = 0;
-            for (; i + 16 < n_vectors; i += 16) {
-                cur_dist_vec = _mm512_load_ps(&pruning_distances_tmp[i]);
-                data_vec = _mm512_i32gather_ps(
-                    _mm512_load_epi32(&pruning_positions[i]), tmp_data, sizeof(distance_t)
-                );
-                d_vec = _mm512_sub_ps(data_vec, query_vec);
-                cur_dist_vec = _mm512_fmadd_ps(d_vec, d_vec, cur_dist_vec);
-                _mm512_store_ps(&pruning_distances_tmp[i], cur_dist_vec);
-            }
-            __m256 query_vec_m256;
-            query_vec_m256 = _mm256_set1_ps(query[true_dimension_idx]);
-            //            if constexpr (L_ALPHA == IP){
-            //                query_vec_m256 = _mm256_set1_ps(-2 * query[true_dimension_idx]);
-            //            }
-            // Up to 8
-            for (; i + 8 < n_vectors; i += 8) {
-                cur_dist_vec_m256 = _mm256_load_ps(&pruning_distances_tmp[i]);
-                data_vec_m256 = _mm256_i32gather_ps(
-                    tmp_data, _mm256_load_epi32(&pruning_positions[i]), sizeof(distance_t)
-                );
-                d_vec_m256 = _mm256_sub_ps(data_vec_m256, query_vec_m256);
-                cur_dist_vec_m256 = _mm256_fmadd_ps(d_vec_m256, d_vec_m256, cur_dist_vec_m256);
-                _mm256_store_ps(&pruning_distances_tmp[i], cur_dist_vec_m256);
-            }
-            // Tail
-            for (; i < n_vectors; i++) {
-                float to_multiply = query[true_dimension_idx] - tmp_data[pruning_positions[i]];
-                pruning_distances_tmp[i] += to_multiply * to_multiply;
-            }
-        }
-        // We now move distances back
-        for (size_t vector_idx = 0; vector_idx < n_vectors; ++vector_idx) {
-            auto true_vector_idx = pruning_positions[vector_idx];
-            distances_p[true_vector_idx] = pruning_distances_tmp[vector_idx];
-        }
-    }
-
     // Defer to the scalar kernel
     template <bool SKIP_PRUNED>
     static void VerticalPruning(
@@ -271,20 +193,6 @@ class SIMDComputer<l2, f32> {
         distance_t* distances_p,
         const uint32_t* pruning_positions = nullptr
     ) {
-        // SIMD is less efficient when looping on the array of not-yet pruned vectors
-        // A way to improve the performance by ~20% is using a GATHER intrinsic. However this only
-        // works on Intel microarchs. In AMD (Zen 4, Zen 3) using a GATHER is shooting ourselves in
-        // the foot (~80 uops)
-        // __AVX512FP16__ macro let us detect Intel architectures (from Sapphire Rapids onwards)
-#if false && defined(__AVX512FP16__)
-        if (n_vectors >= 8) {
-            GatherBasedKernel(
-                    query, data, n_vectors, total_vectors, start_dimension, end_dimension,
-                    distances_p
-            );
-            return;
-        }
-#endif
         size_t dimensions_jump_factor = total_vectors;
         for (size_t dimension_idx = start_dimension; dimension_idx < end_dimension;
              ++dimension_idx) {
@@ -355,9 +263,7 @@ class SIMDComputer<l2, f32> {
     };
 };
 
-/**
- * Utility SIMD operations that don't depend on distance function (alpha)
- */
+
 template <Quantization q>
 class SIMDUtilsComputer {};
 

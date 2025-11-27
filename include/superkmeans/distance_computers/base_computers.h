@@ -41,9 +41,7 @@ class DistanceComputer<DistanceFunction::l2, Quantization::u8> {
     constexpr static auto Horizontal = computer::Horizontal;
 };
 
-/**
- * Utility operations (architecture-independent entry point)
- */
+
 template <Quantization q>
 class UtilsComputer {
     using computer = SIMDUtilsComputer<q>;
@@ -52,4 +50,4 @@ class UtilsComputer {
     constexpr static auto FlipSign = computer::FlipSign;
 };
 
-}; // namespace skmeans
+} // namespace skmeans

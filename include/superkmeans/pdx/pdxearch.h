@@ -13,16 +13,8 @@ namespace skmeans {
  * @brief PDXearch - Efficient Top-1 nearest neighbor search with early termination.
  *
  * Implements the PDXearch algorithm for finding the nearest neighbor using the PDX
- * data layout combined with ADSampling-based pruning. The algorithm works in two phases:
- *
- * 1. **Warmup**: Scans vertical dimensions until a sufficient fraction of candidates
- *    can be pruned based on partial distances.
- *
- * 2. **Prune**: Iteratively processes remaining dimensions (horizontal then vertical),
- *    progressively eliminating candidates that cannot be the nearest neighbor.
- *
- * This approach significantly reduces the number of full distance computations needed,
- * especially for high-dimensional data.
+ * data layout combined with ADSampling-based pruning. In this lightweight implementation,
+ * we skip the warmup phase and directly use the pre-computed partial distances.
  *
  * @tparam q Quantization type (f32 or u8)
  * @tparam Index Index type (typically IndexPDXIVF<q>)
@@ -121,68 +113,6 @@ class PDXearch {
     }
 
     /**
-     * @brief Warmup phase: scans vertical dimensions until enough candidates can be pruned.
-     *
-     * Progressively computes partial distances on vertical dimensions until the fraction
-     * of prunable candidates exceeds selectivity_threshold.
-     *
-     * @tparam Q Quantization type
-     * @param query Query vector
-     * @param data PDX-formatted cluster data
-     * @param n_vectors Number of vectors in the cluster
-     * @param tuples_threshold Target fraction of vectors to prune
-     * @param pruning_positions Output array for non-pruned vector positions
-     * @param pruning_distances Array of partial distances (updated in place)
-     * @param pruning_threshold Current pruning threshold (updated)
-     * @param best_candidate Current best candidate (for threshold computation)
-     * @param current_dimension_idx Number of dimensions processed (updated)
-     */
-    template <Quantization Q = q>
-    void Warmup(
-        const skmeans_value_t<Q>* SKM_RESTRICT query,
-        const skmeans_value_t<Q>* SKM_RESTRICT data,
-        const size_t n_vectors,
-        float tuples_threshold,
-        uint32_t* pruning_positions,
-        skmeans_distance_t<Q>* pruning_distances,
-        skmeans_distance_t<Q>& pruning_threshold,
-        KNNCandidate<Q>& best_candidate,
-        uint32_t& current_dimension_idx
-    ) {
-        size_t cur_subgrouping_size_idx = 0;
-        size_t tuples_needed_to_exit = std::ceil(1.0 * tuples_threshold * n_vectors);
-        uint32_t n_tuples_to_prune = 0;
-        GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
-        EvaluatePruningPredicateScalar<Q>(
-            n_tuples_to_prune, n_vectors, pruning_distances, pruning_threshold
-        );
-        while (1.0 * n_tuples_to_prune < tuples_needed_to_exit &&
-               current_dimension_idx < pdx_data.num_vertical_dimensions) {
-            size_t last_dimension_to_fetch = std::min(
-                current_dimension_idx + DIMENSIONS_FETCHING_SIZES[cur_subgrouping_size_idx],
-                pdx_data.num_vertical_dimensions
-            );
-            DistanceComputer<alpha, Q>::Vertical(
-                query,
-                data,
-                n_vectors,
-                n_vectors,
-                current_dimension_idx,
-                last_dimension_to_fetch,
-                pruning_distances,
-                pruning_positions
-            );
-            current_dimension_idx = last_dimension_to_fetch;
-            cur_subgrouping_size_idx += 1;
-            GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
-            n_tuples_to_prune = 0;
-            EvaluatePruningPredicateScalar<Q>(
-                n_tuples_to_prune, n_vectors, pruning_distances, pruning_threshold
-            );
-        }
-    }
-
-    /**
      * @brief Prune phase: iteratively eliminates candidates using remaining dimensions.
      *
      * Processes horizontal dimensions first (more SIMD-friendly), then remaining vertical
@@ -272,50 +202,26 @@ class PDXearch {
         while (n_vectors_not_pruned && current_vertical_dimension < pdx_data.num_vertical_dimensions
         ) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
-            if (aux_data == nullptr) {
-                size_t last_dimension_to_test_idx = std::min(
-                    current_vertical_dimension + H_DIM_SIZE,
-                    (size_t) pdx_data.num_vertical_dimensions
-                );
-                DistanceComputer<alpha, Q>::VerticalPruning(
-                    query,
-                    data,
-                    cur_n_vectors_not_pruned,
-                    n_vectors,
-                    current_vertical_dimension,
-                    last_dimension_to_test_idx,
-                    pruning_distances,
-                    pruning_positions
-                );
-                current_dimension_idx =
-                    std::min(current_dimension_idx + H_DIM_SIZE, (size_t) pdx_data.num_dimensions);
-                current_vertical_dimension = std::min(
-                    (uint32_t) (current_vertical_dimension + H_DIM_SIZE),
-                    pdx_data.num_vertical_dimensions
-                );
-            } else { // !We have the data also in the Horizontal layout
-                // We go till the end
-                size_t dimensions_left =
-                    pdx_data.num_vertical_dimensions - current_vertical_dimension;
-                // std::cout << "Dims left" << dimensions_left << std::endl;
-                size_t offset_query = current_vertical_dimension;
-                for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
-                    size_t v_idx = pruning_positions[vector_idx];
-                    auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
-                                    current_vertical_dimension;
-                    __builtin_prefetch(data_pos, 0, 1);
-                }
-                for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
-                    size_t v_idx = pruning_positions[vector_idx];
-                    auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
-                                    current_vertical_dimension;
-                    pruning_distances[v_idx] += DistanceComputer<alpha, Q>::Horizontal(
-                        query + offset_query, data_pos, dimensions_left
-                    );
-                }
-                current_dimension_idx = pdx_data.num_dimensions;
-                current_vertical_dimension = pdx_data.num_vertical_dimensions;
+            // !We have the data also in the Horizontal layout, so we go till the end
+            size_t dimensions_left =
+                pdx_data.num_vertical_dimensions - current_vertical_dimension;
+            size_t offset_query = current_vertical_dimension;
+            for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
+                size_t v_idx = pruning_positions[vector_idx];
+                auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
+                                current_vertical_dimension;
+                __builtin_prefetch(data_pos, 0, 1);
             }
+            for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
+                size_t v_idx = pruning_positions[vector_idx];
+                auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
+                                current_vertical_dimension;
+                pruning_distances[v_idx] += DistanceComputer<alpha, Q>::Horizontal(
+                    query + offset_query, data_pos, dimensions_left
+                );
+            }
+            current_dimension_idx = pdx_data.num_dimensions;
+            current_vertical_dimension = pdx_data.num_vertical_dimensions;
             assert(
                 current_dimension_idx == current_vertical_dimension + current_horizontal_dimension
             );
@@ -366,89 +272,6 @@ class PDXearch {
     }
 
   public:
-    /******************************************************************
-     * Search methods
-     ******************************************************************/
-
-    /**
-     * @brief Finds the nearest neighbor using full PDXearch (warmup + prune).
-     *
-     * Searches through clusters from start_cluster to end_cluster, using the
-     * provided threshold as the initial pruning bound.
-     *
-     * @param query Query vector (in rotated space)
-     * @param prev_pruning_threshold Initial distance threshold (from previous best)
-     * @param prev_top_1 Index of previous best candidate
-     * @param pruned_at_accum Accumulator for early termination statistics
-     * @param start_cluster First cluster index to search
-     * @param end_cluster One past the last cluster index to search
-     * @return Best candidate found (index and distance)
-     */
-    KNNCandidate_t Top1SearchWithThreshold(
-        const float* SKM_RESTRICT query,
-        const float prev_pruning_threshold,
-        const uint32_t prev_top_1,
-        uint32_t& pruned_at_accum,
-        const size_t start_cluster,
-        const size_t end_cluster
-    ) {
-        alignas(64) thread_local DISTANCES_TYPE pruning_distances[PDX_VECTOR_SIZE];
-        alignas(64) thread_local uint32_t pruning_positions[PDX_VECTOR_SIZE];
-        DISTANCES_TYPE pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
-        size_t n_vectors_not_pruned = 0;
-        uint32_t current_dimension_idx = 0;
-        size_t current_cluster = 0;
-
-        // Setup previous top1
-        pruning_threshold = prev_pruning_threshold;
-        auto top_embedding = KNNCandidate<q>{};
-        top_embedding.index = prev_top_1;
-        top_embedding.distance = prev_pruning_threshold;
-        // PDXearch core
-        current_dimension_idx = 0;
-        for (size_t cluster_idx = start_cluster; cluster_idx < end_cluster; ++cluster_idx) {
-            current_cluster = cluster_idx;
-            CLUSTER_TYPE& cluster = pdx_data.clusters[current_cluster];
-            Warmup(
-                query,
-                cluster.data,
-                cluster.num_embeddings,
-                selectivity_threshold,
-                pruning_positions,
-                pruning_distances,
-                pruning_threshold,
-                top_embedding,
-                current_dimension_idx
-            );
-            pruned_at_accum += current_dimension_idx;
-            Prune(
-                query,
-                cluster.data,
-                cluster.num_embeddings,
-                pruning_positions,
-                pruning_distances,
-                pruning_threshold,
-                top_embedding,
-                n_vectors_not_pruned,
-                current_dimension_idx,
-                cluster.indices,
-                prev_top_1,
-                cluster.aux_hor_data
-            );
-            if (n_vectors_not_pruned) {
-                SetBestCandidate(
-                    cluster.indices,
-                    n_vectors_not_pruned,
-                    pruning_positions,
-                    pruning_distances,
-                    top_embedding
-                );
-            }
-        }
-        BuildResultSet(top_embedding);
-        return top_embedding;
-    }
-
     /**
      * @brief Finds the nearest neighbor using partial distances from BLAS computation.
      *

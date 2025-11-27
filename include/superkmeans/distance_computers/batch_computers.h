@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <omp.h>
 
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
@@ -134,6 +135,14 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         std::fill_n(out_distances, n_x * k, std::numeric_limits<distance_t>::max());
         std::fill_n(out_knn, n_x * k, static_cast<uint32_t>(-1));
 
+        // Pre-allocate per-thread candidate buffers to avoid heap allocation in the hot loop
+        const size_t max_candidates = k + Y_BATCH_SIZE;
+        const uint32_t num_threads = g_n_threads;
+        std::vector<std::vector<std::pair<float, uint32_t>>> thread_candidates(num_threads);
+        for (auto& tc : thread_candidates) {
+            tc.reserve(max_candidates);
+        }
+
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
             auto batch_n_x = X_BATCH_SIZE;
             auto batch_x_p = x + (i * d);
@@ -165,8 +174,9 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                     }
 
                     // Merge: Combine previous top-k with current Y batch candidates
-                    std::vector<std::pair<float, uint32_t>> candidates;
-                    candidates.reserve(k + batch_n_y);
+                    // Use pre-allocated per-thread buffer instead of allocating each iteration
+                    auto& candidates = thread_candidates[omp_get_thread_num()];
+                    candidates.clear();
 
                     // Add previous top-k (skip if distance is infinity, meaning not filled yet)
                     for (size_t ki = 0; ki < k; ++ki) {

@@ -155,4 +155,4 @@ struct Cluster<Quantization::f32> {
                  // ones not visited by BLAS
 };
 
-}; // namespace skmeans
+} // namespace skmeans

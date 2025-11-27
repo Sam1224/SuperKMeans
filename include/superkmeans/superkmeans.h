@@ -241,13 +241,13 @@ class SuperKMeans {
         // Special path for low-dimensional data: use BLAS-only for all iterations
         if (_d < 128) {
             for (; iter_idx < _config.iters; ++iter_idx) {
-                // Save current centroids for shift computation
-                std::copy(_horizontal_centroids.begin(), _horizontal_centroids.end(), _prev_centroids.begin());
-                // Recompute centroid norms for the updated centroids
-                GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, _centroid_norms.data());
+                // After swap: _prev_centroids has old centroids, _horizontal_centroids will be zeroed for accumulation
+                std::swap(_horizontal_centroids, _prev_centroids);
+                // Recompute centroid norms for the (now in _prev_centroids) old centroids
+                GetL2NormsRowMajor(_prev_centroids.data(), _n_clusters, _centroid_norms.data());
                 InitAssignAndUpdateCentroids(
                     data_to_cluster,
-                    _horizontal_centroids.data(),
+                    _prev_centroids.data(),  // Search using old centroids
                     all_distances.data()
                 );
                 ConsolidateCentroids();
@@ -289,15 +289,16 @@ class SuperKMeans {
         std::vector<size_t> not_pruned_counts(_n_samples);
         GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
         for (; iter_idx < _config.iters; ++iter_idx) {
-            // Save current centroids for shift computation
-            std::copy(_horizontal_centroids.begin(), _horizontal_centroids.end(), _prev_centroids.begin());
+            // After swap: _prev_centroids has old centroids, _horizontal_centroids will be zeroed for accumulation
+            std::swap(_horizontal_centroids, _prev_centroids);
             GetL2NormsRowMajor(
-                _horizontal_centroids.data(), _n_clusters, centroids_partial_norms.data(), _initial_partial_d
+                _prev_centroids.data(), _n_clusters, centroids_partial_norms.data(), _initial_partial_d
             );
             // Reset the not-pruned counts buffer
             std::fill(not_pruned_counts.begin(), not_pruned_counts.end(), 0);
             AssignAndUpdateCentroidsPartialBatched(
                 data_to_cluster,
+                _prev_centroids.data(),  // Search using _prev_centroids
                 centroids_partial_norms.data(),
                 all_distances.data(),
                 centroids_pdx_wrapper,
@@ -457,6 +458,7 @@ class SuperKMeans {
      * then PDXearch for pruning and completing distances for remaining candidates.
      *
      * @param data Data matrix (row-major, _n_samples × _d)
+     * @param centroids_for_search Centroids to use for BLAS distance computation (row-major)
      * @param partial_centroid_norms Partial norms of centroids (first _initial_partial_d dims)
      * @param all_distances Workspace buffer for distance computations
      * @param pdx_centroids PDX-layout centroids for PDXearch
@@ -464,6 +466,7 @@ class SuperKMeans {
      */
     void AssignAndUpdateCentroidsPartialBatched(
         const vector_value_t* SKM_RESTRICT data,
+        const vector_value_t* SKM_RESTRICT centroids_for_search,
         const vector_value_t* SKM_RESTRICT partial_centroid_norms,
         distance_t* SKM_RESTRICT all_distances,
         const layout_t& pdx_centroids,
@@ -472,7 +475,7 @@ class SuperKMeans {
         _cost = 0.0;
         batch_computer::FindNearestNeighborWithPruning(
             data,
-            _horizontal_centroids.data(),
+            centroids_for_search,
             _n_samples,
             _n_clusters,
             _d,
