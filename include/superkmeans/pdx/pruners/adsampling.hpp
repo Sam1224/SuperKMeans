@@ -89,18 +89,6 @@ class ADSamplingPruner {
         }
     }
 
-    static bool VerifyOrthonormal(const MatrixR& Q, float tol = 1e-5f) {
-        uint32_t n = Q.rows();
-        assert(Q.rows() == Q.cols());
-        // Compute Q * Q^T (use column-major temporary for stable multiply)
-        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> Qc = Q; // conversion
-        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> M = Qc * Qc.transpose();
-        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> I =
-            Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>::Identity(n, n);
-        float err = (M - I).norm(); // Frobenius norm
-        return err <= tol;
-    }
-
     void SetEpsilon0(float epsilon0) {
         ADSamplingPruner::epsilon0 = epsilon0;
         for (size_t i = 0; i < num_dimensions + 1; ++i) {
@@ -136,8 +124,6 @@ class ADSamplingPruner {
         value_t* SKM_RESTRICT out_buffer,
         const uint32_t n
     ) {
-        TicToc m;
-        m.Tic();
         Eigen::Map<const MatrixR> vectors_matrix(vectors, n, num_dimensions);
         Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
 #ifdef HAS_FFTW
@@ -247,10 +233,10 @@ class ADSamplingPruner {
         if (visited_dimensions == 0) {
             return 1;
         }
-        if (visited_dimensions == (int) num_dimensions) {
+        if (visited_dimensions == num_dimensions) {
             return 1.0;
         }
-        return 1.0 * visited_dimensions / ((int) num_dimensions) *
+        return 1.0 * visited_dimensions / num_dimensions *
                (1.0 + epsilon0 / std::sqrt(visited_dimensions)) *
                (1.0 + epsilon0 / std::sqrt(visited_dimensions));
     }

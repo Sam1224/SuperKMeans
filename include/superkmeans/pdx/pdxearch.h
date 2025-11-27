@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cassert>
-// #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.hpp"
 #include "superkmeans/pdx/index_base/pdx_ivf.hpp"
 #include "superkmeans/pdx/index_base/pdx_ivf2.hpp"
@@ -108,8 +107,6 @@ class PDXearch {
         thread_local size_t cur_subgrouping_size_idx = 0;
         cur_subgrouping_size_idx = 0;
         size_t tuples_needed_to_exit = std::ceil(1.0 * tuples_threshold * n_vectors);
-        // current_dimension_idx = 0;
-        // ResetPruningDistances<Q>(n_vectors, pruning_distances);
         uint32_t n_tuples_to_prune = 0;
         GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
         EvaluatePruningPredicateScalar<Q>(
@@ -175,8 +172,6 @@ class PDXearch {
         size_t cur_n_vectors_not_pruned = 0;
         size_t current_vertical_dimension = current_dimension_idx;
         size_t current_horizontal_dimension = 0;
-        // std::cout << pdx_data.num_horizontal_dimensions << "\n";
-        // std::cout << pdx_data.num_vertical_dimensions << "\n";
         while (pdx_data.num_horizontal_dimensions && n_vectors_not_pruned &&
                current_horizontal_dimension < pdx_data.num_horizontal_dimensions) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
@@ -215,7 +210,6 @@ class PDXearch {
         ) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
             if (aux_data == nullptr) {
-                std::cout << "NOT RIGHT?" << std::endl;
                 size_t last_dimension_to_test_idx = std::min(
                     current_vertical_dimension + H_DIM_SIZE,
                     (size_t) pdx_data.num_vertical_dimensions

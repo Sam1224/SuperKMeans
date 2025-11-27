@@ -47,16 +47,8 @@ class PDXLayout {
     void FromBufferToPDXIndex(
         scalar_t* SKM_RESTRICT pdx_data,
         const size_t n_points,
-        const size_t d
-    ) {
-        FromBufferToPDXIndex(pdx_data, n_points, d, nullptr);
-    }
-
-    void FromBufferToPDXIndex(
-        scalar_t* SKM_RESTRICT pdx_data,
-        const size_t n_points,
         const size_t d,
-        scalar_t* SKM_RESTRICT hor_data
+        scalar_t* SKM_RESTRICT hor_data = nullptr
     ) {
         auto [horizontal_d, vertical_d] = GetDimensionSplit(d);
         size_t n_pdx_clusters = n_points / VECTOR_CHUNK_SIZE;

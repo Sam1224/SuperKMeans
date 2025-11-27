@@ -2,11 +2,7 @@
 #define SKMEANS_IVF2_HPP
 
 #include "superkmeans/common.h"
-#include "superkmeans/pdx/utils.h"
 #include <cassert>
-#include <iostream>
-#include <memory>
-#include <string>
 #include <vector>
 
 namespace skmeans {
@@ -23,8 +19,6 @@ class IndexPDXIVF2<f32> {
     using CLUSTER_TYPE = Cluster<f32>;
     using CLUSTER_TYPE_L0 = Cluster<f32>;
 
-    std::unique_ptr<char[]> file_buffer;
-
     uint32_t num_dimensions{};
     uint32_t num_clusters{};
     uint32_t num_horizontal_dimensions{};
@@ -34,16 +28,8 @@ class IndexPDXIVF2<f32> {
     uint32_t num_clusters_l0{};
     std::vector<Cluster<f32>> clusters_l0;
 
-    float* means{};
-    bool is_ivf{};
     bool is_normalized{};
-    float* centroids{};
     float* centroids_pdx{};
-
-    void Restore(const std::string& filename) {
-        file_buffer = MmapFile(filename);
-        Load(file_buffer.get());
-    }
 
     void Load(char* input) {
         char* next_value = input;
@@ -103,8 +89,6 @@ class IndexPDXIVF2<u8> {
     using CLUSTER_TYPE = Cluster<u8>;
     using CLUSTER_TYPE_L0 = Cluster<f32>;
 
-    std::unique_ptr<char[]> file_buffer;
-
     uint32_t num_dimensions{};
     uint32_t num_clusters{};
     uint32_t num_horizontal_dimensions{};
@@ -115,18 +99,11 @@ class IndexPDXIVF2<u8> {
     uint32_t num_clusters_l0{};
     std::vector<Cluster<f32>> clusters_l0;
 
-    float* means{};
     bool is_normalized{};
-    float* centroids{};
     float* centroids_pdx{};
 
     float for_base{};
     float scale_factor{};
-
-    void Restore(const std::string& filename) {
-        file_buffer = MmapFile(filename);
-        Load(file_buffer.get());
-    }
 
     void Load(char* input) {
         char* next_value = input;

@@ -64,8 +64,9 @@ static inline constexpr size_t D_THRESHOLD_FOR_DCT_ROTATION = 512;
 static inline constexpr size_t H_DIM_SIZE = 64;
 static inline constexpr size_t X_BATCH_SIZE = 4096;
 static inline constexpr size_t Y_BATCH_SIZE = 1024;
-static inline constexpr size_t VECTOR_CHUNK_SIZE = 1024; // Same as Y_BATCH_SIZE
-static inline constexpr uint16_t PDX_VECTOR_SIZE = 1024; // Same as Y_BATCH_SIZE
+// Note: VECTOR_CHUNK_SIZE and PDX_VECTOR_SIZE are aliases for Y_BATCH_SIZE
+static inline constexpr size_t VECTOR_CHUNK_SIZE = Y_BATCH_SIZE;
+static inline constexpr uint16_t PDX_VECTOR_SIZE = Y_BATCH_SIZE;
 static inline constexpr float CENTROID_PERTURBATION_EPS = 1.0f / 1024.0f;
 static inline constexpr float PRUNER_INITIAL_THRESHOLD = 1.5f;
 static inline constexpr float PRUNING_GROUP_DEVIATION_FACTOR = 0.25f;

@@ -122,9 +122,11 @@ class SuperKMeans {
         if (_initial_partial_d > _vertical_d) {
             _initial_partial_d = _vertical_d;
         }
-        std::cout << "Vertical D: " << _vertical_d << std::endl;
-        std::cout << "Horizontal D: " << _d - _vertical_d << std::endl;
-        std::cout << "Initial Partial D: " << _initial_partial_d << std::endl;
+        if (_verbose) {
+            std::cout << "Vertical D: " << _vertical_d << std::endl;
+            std::cout << "Horizontal D: " << _d - _vertical_d << std::endl;
+            std::cout << "Initial Partial D: " << _initial_partial_d << std::endl;
+        }
         {
             SKM_PROFILE_SCOPE("allocator");
             _partial_horizontal_centroids.resize(_n_clusters * _vertical_d);
@@ -142,7 +144,8 @@ class SuperKMeans {
         std::vector<centroid_value_t> rotated_initial_centroids(_n_clusters * _d);
         {
             SKM_PROFILE_SCOPE("rotator");
-            std::cout << "Rotating..." << std::endl;
+            if (_verbose)
+                std::cout << "Rotating..." << std::endl;
             _pruner->Rotate(_horizontal_centroids.data(), rotated_initial_centroids.data(), _n_clusters);
         }
 
@@ -176,18 +179,6 @@ class SuperKMeans {
             _query_norms.resize(n_queries);
             GetL2NormsRowMajor(rotated_queries.data(), n_queries, _query_norms.data());
             GetGTAssignmentsAndDistances(data_to_cluster, _n_samples, rotated_queries.data(), n_queries, objective_k);
-
-            // Print the assignments and distances of the first 10 queries
-            // if (verbose) {
-            //     std::cout << "First 10 GT Assignments and Distances:" << std::endl;
-            //     for (size_t i = 0; i < 100; ++i) {
-            //         std::cout << "Query " << i << ":" << std::endl;
-            //         for (size_t j = 0; j < objective_k; ++j) {
-            //             std::cout << "  Assignment: " << _gt_assignments[i * objective_k + j] << " Distance: " << _gt_distances[i * objective_k + j] << std::endl;
-            //         }
-            //     }
-            //     std::cout << std::endl;
-            // }
         }
 
         // First iteration: Only Blas
@@ -770,7 +761,6 @@ class SuperKMeans {
         // Calculate average not-pruned percentage from the buffer
         float avg_not_pruned_pct = 0.0f;
         for (size_t i = 0; i < n_samples; ++i) {
-            // std::cout << "Not pruned count: " << not_pruned_counts[i] << " out of " << n_y << std::endl;
             avg_not_pruned_pct += static_cast<float>(not_pruned_counts[i]);
         }
         avg_not_pruned_pct /= static_cast<float>(n_samples * n_y);
@@ -894,7 +884,8 @@ class SuperKMeans {
         const size_t n_samples
     ) {
         out_buffer.resize(n_samples * _d);
-        std::cout << "n_samples: " << n_samples << std::endl;
+        if (_verbose)
+            std::cout << "n_samples: " << n_samples << std::endl;
 
         // Intermediate buffer needed only when both sampling and rotating
         // (we have not yet implemented rotation in-place)
