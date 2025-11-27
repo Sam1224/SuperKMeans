@@ -209,8 +209,9 @@ class SuperKMeans {
         // End of First iteration
 
         if (_iters <= 1) {
+            auto output_centroids = GetOutputCentroids(unrotate_centroids);
             Profiler::Get().PrintHierarchical();
-            return GetOutputCentroids(unrotate_centroids);
+            return output_centroids;
         }
 
         // Special path for low-dimensional data: use BLAS-only for all iterations
@@ -246,10 +247,11 @@ class SuperKMeans {
                               << " | Recall: " << _recall << " [BLAS-only]" << std::endl << std::endl;
             }
             _trained = true;
+            auto output_centroids = GetOutputCentroids(unrotate_centroids);
             if (verbose) {
                 Profiler::Get().PrintHierarchical();
             }
-            return GetOutputCentroids(unrotate_centroids);
+            return output_centroids;
         }
 
 
@@ -313,10 +315,11 @@ class SuperKMeans {
         }
 
         _trained = true;
+        auto output_centroids = GetOutputCentroids(unrotate_centroids);
         if (verbose) {
             Profiler::Get().PrintHierarchical();
         }
-        return GetOutputCentroids(unrotate_centroids);
+        return output_centroids;
     }
 
 
