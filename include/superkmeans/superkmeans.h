@@ -124,7 +124,7 @@ class SuperKMeans {
             std::cout << "Sampling data..." << std::endl;
         }
 
-        // TODO: This is bad because data_to_cluster may have one buffer or the other, objects
+        // TODO(@lkuffo, low): This is bad because data_to_cluster may have one buffer or the other, objects
         // life span is not clear
         std::vector<vector_value_t> data_samples_buffer;
         auto data_to_cluster = SampleVectors(data_p, data_samples_buffer, n, _n_samples);
@@ -143,7 +143,7 @@ class SuperKMeans {
 
         std::vector<vector_value_t> rotated_queries;
         if (n_queries) {
-            // TODO(@lkuffo, crit): Set this to a percentage of the number of clusters defined as a parameter of Train()
+            // TODO(@lkuffo, supercrit): Set this to a percentage of the number of clusters defined as a parameter of Train()
             _centroids_to_explore = std::max<size_t>(_n_clusters / 100, 1);
             std::cout << " -----> Centroids to explore: " << _centroids_to_explore << std::endl;
             if (verbose) {
@@ -207,7 +207,7 @@ class SuperKMeans {
 
         if (_iters <= 1) {
             Profiler::Get().PrintHierarchical();
-            return _centroids;
+            return _tmp_centroids;
         }
 
         // Special path for low-dimensional data: use BLAS-only for all iterations
@@ -246,7 +246,7 @@ class SuperKMeans {
             if (verbose) {
                 Profiler::Get().PrintHierarchical();
             }
-            return _centroids;
+            return _tmp_centroids;
         }
 
 
@@ -303,7 +303,7 @@ class SuperKMeans {
         }
         //! I only need assignments if sampling_faction < 1
         if (_sampling_fraction < 1.0f) {
-            // TODO(@lkuffo, critical): Create proper assignments
+            // TODO(@lkuffo, supercrit): Create proper assignments
             // Assign(data, centroids_pdx_wrapper, n);
         }
 
@@ -311,7 +311,8 @@ class SuperKMeans {
         if (verbose) {
             Profiler::Get().PrintHierarchical();
         }
-        return _centroids;
+        // TODO(@lkuffo, supercrit): I need to return the UNROTATED horizontal centroids
+        return _tmp_centroids;
     }
 
 
@@ -331,9 +332,6 @@ class SuperKMeans {
         const layout_t& pdx_centroids,
         const size_t n
     ) {
-        // TODO(@lkuffo, low): What if I start with a 1 to 1 distance with the same centroid that
-        //      was assigned last time and I set it as an initial lower bound?
-        //      I can force the Start() to that chunk?
         auto data_p = data;
         // TODO(@lkuffo, med): Skip the vectors that were used as samples
         for (size_t i = 0; i < n; ++i) {
@@ -343,7 +341,6 @@ class SuperKMeans {
             _assignments[i] = assignment_idx;
             data_p += _d;
         }
-        // TODO(@lkuffo, medium): Do I need to return the true centroids?
     }
 
     /**
@@ -571,7 +568,7 @@ class SuperKMeans {
     float ComputeRecall(const vector_value_t* SKM_RESTRICT queries, const size_t n_queries, const size_t objective_k, const size_t centroids_to_explore) {
         SKM_PROFILE_SCOPE("recall");
         std::vector<distance_t> tmp_distances_buffer(X_BATCH_SIZE * Y_BATCH_SIZE);
-        // TODO(@lkuffo, crit): Everytime we call this function we compute norms again and again.
+        // TODO(@lkuffo, supercrit): Everytime we call this function we compute the query norms again and again.
         std::vector<distance_t> query_norms(n_queries);
         GetL2NormsRowMajor(queries, n_queries, query_norms.data());
         std::vector<uint32_t> promising_centroids(n_queries * centroids_to_explore);
@@ -629,15 +626,6 @@ class SuperKMeans {
         {
             SKM_PROFILE_SCOPE("sampling");
             auto tmp_centroids_p = _tmp_centroids.data();
-            // Equidistant sampling similar to DuckDB's
-            // const auto jumps = static_cast<size_t>(std::floor(1.0 * n / _n_clusters));
-            // for (size_t i = 0; i < n; i += jumps) {
-            //     // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
-            //     memcpy(
-            //         (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
-            //     );
-            //     tmp_centroids_p += _d;
-            // }
             // First `n` samples similar to FAISS'
             for (size_t i = 0; i < _n_clusters; i += 1) {
                 // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
@@ -783,17 +771,15 @@ class SuperKMeans {
         }
     }
 
-    // Equidistant sampling similar to DuckDB's
     template <bool ROTATE = true>
     vector_value_t* SampleVectors(
         const vector_value_t* SKM_RESTRICT data,
         std::vector<vector_value_t>& data_samples_buffer,
         const size_t n,
         const size_t n_samples
-    ) { // TODO(@lkuffo, med): can be const function
+    ) {
         const vector_value_t* tmp_data_buffer_p = nullptr;
         std::vector<vector_value_t> samples_tmp;
-        // TODO(@lkuffo, medium): If DP, normalize here while taking the samples
         {
             SKM_PROFILE_SCOPE("sampling");
             if (n_samples < n) {
@@ -815,11 +801,10 @@ class SuperKMeans {
 
         std::cout << "n_samples: " << n_samples << std::endl;
 
-        // TODO(@lkuffo, crit): This buffer is a headache
+        // TODO(@lkuffo, supercrit): I dont like that I am returning the buffer pointer, just use it outside
         data_samples_buffer.resize(n_samples * _d);
         {
             SKM_PROFILE_SCOPE("rotator");
-            std::cout << "Rotating 1..." << std::endl;
             if (ROTATE) {
                 _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), n_samples);
             } else {

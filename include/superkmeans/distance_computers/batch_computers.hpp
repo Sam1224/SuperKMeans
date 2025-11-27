@@ -242,7 +242,7 @@ class BatchComputer<l2, f32> {
         const data_t* SKM_RESTRICT x,
         const data_t* SKM_RESTRICT y,
         const data_t* SKM_RESTRICT
-            prev_y, // TODO(lkuffo, crit): Is not previous but current (variable name is confusing)
+            prev_y, // TODO(@lkuffo, supercrit): Is not previous but current (variable name is confusing)
         const size_t n_x,
         const size_t n_y,
         const size_t d,

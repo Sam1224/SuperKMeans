@@ -354,10 +354,7 @@ class PDXearch {
         }
         if constexpr (q == u8) {
             best_candidate.distance = best_candidate.distance * inverse_scale_factor;
-        } else if constexpr (q == f32) {
-            best_candidate.distance = best_candidate.distance; // TODO: REMOVE
         }
-        best_candidate.index = best_candidate.index; // TODO: REMOVE
     }
 
   public:

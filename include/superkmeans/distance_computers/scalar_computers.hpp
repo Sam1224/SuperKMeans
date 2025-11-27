@@ -103,7 +103,7 @@ class ScalarComputer<dp, f32> {
         distance_t* distances_p,
         const uint32_t* pruning_positions = nullptr
     ) {
-        // TODO
+
     }
 
     // Defer to the scalar kernel
@@ -114,7 +114,7 @@ class ScalarComputer<dp, f32> {
         size_t end_dimension,
         distance_t* distances_p
     ) {
-        // TODO
+
     }
 
     static distance_t Horizontal(

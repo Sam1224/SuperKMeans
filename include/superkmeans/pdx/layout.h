@@ -151,7 +151,6 @@ class PDXLayout {
             horizontal_d = H_DIM_SIZE;
             vertical_d = d - horizontal_d;
         }
-        // TODO(@lkuffo): What are the consequences of this?
         if (d <= H_DIM_SIZE) {
             horizontal_d = 0;
             vertical_d = d;

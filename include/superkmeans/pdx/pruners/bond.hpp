@@ -18,7 +18,6 @@ class BondPruner {
 
     BondPruner(uint32_t num_dimensions) : num_dimensions(num_dimensions) {};
 
-    // TODO: Do not copy
     void PreprocessQuery(float* raw_query, float* query) {
         memcpy((void*) query, (void*) raw_query, num_dimensions * sizeof(DATA_TYPE));
     }

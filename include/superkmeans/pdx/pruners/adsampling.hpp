@@ -125,7 +125,7 @@ class ADSamplingPruner {
         for (size_t i = 0; i < n; ++i) {
             const auto offset = i * num_dimensions;
             size_t j = 0;
-            // TODO(@lkuffo, crit): Get this out of here
+            // TODO(@lkuffo, supercrit): Get this out of here into the neon/avx2/avx512_computers.hpp
             for (; j + 4 <= num_dimensions; j += 4) {
                 float32x4_t vec = vld1q_f32(data + offset + j);
                 const uint32x4_t mask = vld1q_u32(flip_masks.data() + j);
@@ -141,7 +141,7 @@ class ADSamplingPruner {
         }
     }
 
-    // TODO(@lkuffo, high): Pararellize, use scalar_t
+    // TODO(@lkuffo, high): use scalar_t
     void Rotate(
         const float* SKM_RESTRICT vectors,
         float* SKM_RESTRICT out_buffer,
@@ -160,7 +160,7 @@ class ADSamplingPruner {
             int howmany = static_cast<int>(n); // number of transforms (one per row)
             fftw_r2r_kind kind[1] = {FFTW_REDFT10};
             auto flag = FFTW_MEASURE;
-            if (IsPowerOf2(num_dimensions)) { // TODO(@lkuffo, crit): Check if this is correct
+            if (IsPowerOf2(num_dimensions)) { 
                 flag = FFTW_ESTIMATE;
             }
             fftwf_plan plan = fftwf_plan_many_r2r(
