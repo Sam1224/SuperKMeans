@@ -184,14 +184,10 @@ class ADSamplingPruner {
             const float s = std::sqrt(1.0f / (2.0f * num_dimensions));
             out.col(0) *= s0;
             out.rightCols(num_dimensions - 1) *= s;
-            m.Toc();
-            std::cout << "Rot Time (s)" << m.accum_time / 1000000000.0 << std::endl;
             return;
         }
 #endif
         out.noalias() = vectors_matrix * matrix.transpose();
-        m.Toc();
-        std::cout << "Rot Time (s)" << m.accum_time / 1000000000.0 << std::endl;
     }
 
   private:

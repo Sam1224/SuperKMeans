@@ -146,9 +146,6 @@ class SuperKMeans {
             // TODO(@lkuffo, supercrit): Set this to a percentage of the number of clusters defined as a parameter of Train()
             _centroids_to_explore = std::max<size_t>(_n_clusters / 100, 1);
             std::cout << " -----> Centroids to explore: " << _centroids_to_explore << std::endl;
-            if (verbose) {
-                std::cout << "Getting GT Assignments and Distances for " << n_queries << " queries..." << std::endl;
-            }
             {
                 SKM_PROFILE_SCOPE("allocator");
                 _gt_assignments.resize(n_queries * objective_k);
@@ -165,7 +162,6 @@ class SuperKMeans {
                 _pruner->Rotate(queries, rotated_queries.data(), n_queries);
             }
             GetGTAssignmentsAndDistances(data_to_cluster, _n_samples, rotated_queries.data(), n_queries, objective_k);
-            std::cout << "TOTAL GT ASSIGNMENTS TIME " << Profiler::Get().GetTimeSeconds("gt_assignments") << std::endl;
 
             // Print the assignments and distances of the first 10 queries
             // if (verbose) {
@@ -362,9 +358,6 @@ class SuperKMeans {
         distance_t* SKM_RESTRICT all_distances,
         const size_t n
     ) {
-        if (verbose) {
-            std::cout << "Batch Calculation [START]..." << std::endl;
-        }
         batch_computer::Batched_XRowMajor_YRowMajor(
             data,
             rotated_initial_centroids,
@@ -377,9 +370,6 @@ class SuperKMeans {
             _distances.data(),
             all_distances
         );
-        if (verbose) {
-            std::cout << "Batch Calculation [DONE]..." << std::endl;
-        }
         std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
         std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
         cost = 0.0;
@@ -821,9 +811,9 @@ class SuperKMeans {
     std::unique_ptr<Pruner> _pruner;
 
     std::vector<centroid_value_t> _centroids;      // Always keeps the PDX centroids
-    std::vector<centroid_value_t> _tmp_centroids;  // Always keeps the horizontal centroids
+    std::vector<centroid_value_t> _tmp_centroids;  // Always keeps the horizontal centroids (TODO(@lkuffo, supercrit): Rename this variable to _horizontal_centroids)
     std::vector<centroid_value_t> _prev_centroids; // Always keeps the previous iteration centroids
-    std::vector<centroid_value_t> _aux_hor_centroids;
+    std::vector<centroid_value_t> _aux_hor_centroids; // TODO(@lkuffo, supercrit): Rename this variable to _partial_horizontal_centroids
     std::vector<uint32_t> _assignments;
     std::vector<distance_t> _distances;
     std::vector<uint32_t> _cluster_sizes;

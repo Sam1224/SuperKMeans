@@ -111,7 +111,7 @@ class BatchComputer<l2, f32> {
         float* SKM_RESTRICT all_distances_buf
     ) {
         SKM_PROFILE_SCOPE("search");
-        SKM_PROFILE_SCOPE("search/blas");
+        SKM_PROFILE_SCOPE("search/1st_blas");
         std::fill_n(out_distances, n_x, std::numeric_limits<distance_t>::max());
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
             auto batch_n_x = X_BATCH_SIZE;
@@ -125,7 +125,6 @@ class BatchComputer<l2, f32> {
                 if (j + Y_BATCH_SIZE > n_y) {
                     batch_n_y = n_y - j;
                 }
-                // std::cout << batch_n_x << "," << batch_n_y << std::endl;
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
                 Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
                 Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
