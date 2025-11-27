@@ -313,7 +313,6 @@ class BatchComputer<l2, f32> {
                                     data_p,
                                     dist_to_prev_centroid,
                                     prev_assignment,
-                                    r,
                                     partial_distances_p,
                                     partial_d,
                                     j / VECTOR_CHUNK_SIZE, // start cluster_id

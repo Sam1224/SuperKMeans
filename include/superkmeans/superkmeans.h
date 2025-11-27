@@ -36,7 +36,7 @@ class SuperKMeans {
         float tol = 1e-5
     )
         : _iters(iters), _n_clusters(n_clusters), _sampling_fraction(sampling_fraction),
-          _d(dimensionality), _trained(false), verbose(verbose), tol(tol) {
+          _d(dimensionality), _trained(false), _verbose(verbose), _tol(tol) {
         SKMEANS_ENSURE_POSITIVE(n_clusters);
         SKMEANS_ENSURE_POSITIVE(iters);
         SKMEANS_ENSURE_POSITIVE(sampling_fraction);
@@ -98,14 +98,14 @@ class SuperKMeans {
             _assignments.resize(n);
             _distances.resize(n);
 
-            data_norms.resize(_n_samples);
-            centroid_norms.resize(_n_clusters);
+            _data_norms.resize(_n_samples);
+            _centroid_norms.resize(_n_clusters);
         }
         std::vector<distance_t> all_distances(X_BATCH_SIZE * Y_BATCH_SIZE);
 
         // TODO(@lkuffo, med): If metric is dp, normalize the vectors so we can use l2
 
-        if (verbose) {
+        if (_verbose) {
             std::cout << "Generating centroids..." << std::endl;
         }
         //! _centroids and _partial_horizontal_centroids are always wrapped with the PDXLayout object
@@ -125,7 +125,7 @@ class SuperKMeans {
             _partial_horizontal_centroids.resize(_n_clusters * _vertical_d);
         }
         auto centroids_pdx_wrapper = GenerateCentroids(data_p, n);
-        if (verbose) {
+        if (_verbose) {
             std::cout << "Sampling data..." << std::endl;
         }
 
@@ -142,14 +142,14 @@ class SuperKMeans {
         }
 
         // Getting norms for data and initial centroids (full norms)
-        GetL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
-        GetL2NormsRowMajor(rotated_initial_centroids.data(), _n_clusters, centroid_norms.data());
+        GetL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
+        GetL2NormsRowMajor(rotated_initial_centroids.data(), _n_clusters, _centroid_norms.data());
 
         std::vector<vector_value_t> rotated_queries;
         if (n_queries) {
             // Compute number of centroids to explore from the fraction parameter (minimum 1)
             _centroids_to_explore = std::max<size_t>(static_cast<size_t>(_n_clusters * ann_explore_fraction), 1);
-            if (verbose) {
+            if (_verbose) {
                 std::cout << "Centroids to explore: " << _centroids_to_explore << " (" << ann_explore_fraction * 100.0f << "% of " << _n_clusters << ")" << std::endl;
             }
             {
@@ -189,8 +189,8 @@ class SuperKMeans {
         InitAssignAndUpdateCentroids(
             data_to_cluster,
             rotated_initial_centroids.data(),
-            data_norms.data(),
-            centroid_norms.data(),
+            _data_norms.data(),
+            _centroid_norms.data(),
             all_distances.data(),
             _n_samples
         );
@@ -204,9 +204,9 @@ class SuperKMeans {
             _recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
         }
         size_t iter_idx = 1;
-        if (verbose)
-            std::cout << "Iteration 1" << "/" << _iters << " | Objective: " << cost
-                      << " | Shift: " << shift << " | Split: " << _n_split
+        if (_verbose)
+            std::cout << "Iteration 1" << "/" << _iters << " | Objective: " << _cost
+                      << " | Shift: " << _shift << " | Split: " << _n_split
                       << " | Recall: " << _recall << std::endl << std::endl;
         // End of First iteration
 
@@ -225,12 +225,12 @@ class SuperKMeans {
                 // Save current centroids for shift computation
                 std::copy(_horizontal_centroids.begin(), _horizontal_centroids.end(), _prev_centroids.begin());
                 // Recompute centroid norms for the updated centroids
-                GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, centroid_norms.data());
+                GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, _centroid_norms.data());
                 InitAssignAndUpdateCentroids(
                     data_to_cluster,
                     _horizontal_centroids.data(),
-                    data_norms.data(),
-                    centroid_norms.data(),
+                    _data_norms.data(),
+                    _centroid_norms.data(),
                     all_distances.data(),
                     _n_samples
                 );
@@ -242,12 +242,12 @@ class SuperKMeans {
                 }
                 if (n_queries) {
                     // Update centroid norms to match the NEW centroids (after ConsolidateCentroids)
-                    GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, centroid_norms.data());
+                    GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, _centroid_norms.data());
                     _recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
                 }
-                if (verbose)
+                if (_verbose)
                     std::cout << "Iteration " << iter_idx + 1 << "/" << _iters
-                              << " | Objective: " << cost << " | Shift: " << shift
+                              << " | Objective: " << _cost << " | Shift: " << _shift
                               << " | Split: " << _n_split
                               << " | Recall: " << _recall << " [BLAS-only]" << std::endl << std::endl;
             }
@@ -256,7 +256,7 @@ class SuperKMeans {
             if (perform_assignments) {
                 _assignments = Assign(data, output_centroids.data(), n, _n_clusters, _d);
             }
-            if (verbose) {
+            if (_verbose) {
                 Profiler::Get().PrintHierarchical();
             }
             return output_centroids;
@@ -267,7 +267,7 @@ class SuperKMeans {
         std::vector<vector_value_t> centroids_partial_norms(_n_clusters);
         // Buffer to store per-vector not-pruned counts for tuning _initial_partial_d
         std::vector<size_t> not_pruned_counts(_n_samples);
-        GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
+        GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
         for (; iter_idx < _iters; ++iter_idx) {
             // Save current centroids for shift computation
             std::copy(_horizontal_centroids.begin(), _horizontal_centroids.end(), _prev_centroids.begin());
@@ -279,7 +279,7 @@ class SuperKMeans {
             AssignAndUpdateCentroidsPartialBatched(
                 data_to_cluster,
                 _horizontal_centroids.data(),
-                data_norms.data(),
+                _data_norms.data(),
                 centroids_partial_norms.data(),
                 all_distances.data(),
                 centroids_pdx_wrapper,
@@ -293,7 +293,7 @@ class SuperKMeans {
             
             // If _initial_partial_d changed, recompute the data norms with the new partial_d
             if (partial_d_changed) {
-                GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
+                GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
             }
             
             ConsolidateCentroids();
@@ -305,12 +305,12 @@ class SuperKMeans {
             if (n_queries) {
                 // Update centroid norms with FULL norms for recall computation
                 // (PDX uses partial norms for distance computation, but recall needs full norms)
-                GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, centroid_norms.data());
+                GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, _centroid_norms.data());
                 _recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
             }
-            if (verbose)
+            if (_verbose)
                 std::cout << "Iteration " << iter_idx + 1 << "/" << _iters
-                          << " | Objective: " << cost << " | Shift: " << shift
+                          << " | Objective: " << _cost << " | Shift: " << _shift
                           << " | Split: " << _n_split 
                           << " | Recall: " << _recall
                           << " | Not Pruned %: " << avg_not_pruned_pct * 100.0f
@@ -324,7 +324,7 @@ class SuperKMeans {
         if (perform_assignments) {
             _assignments = Assign(data, output_centroids.data(), n, _n_clusters, _d);
         }
-        if (verbose) {
+        if (_verbose) {
             Profiler::Get().PrintHierarchical();
         }
         return output_centroids;
@@ -354,7 +354,7 @@ class SuperKMeans {
         
         // Compute norms for vectors and centroids
         std::vector<vector_value_t> vector_norms(n_vectors);
-        std::vector<vector_value_t> centroid_norms(n_centroids);
+        std::vector<vector_value_t> _centroid_norms(n_centroids);
         {
             Eigen::Map<const MatrixR> vectors_mat(vectors, n_vectors, d);
             Eigen::Map<VectorR> v_norms(vector_norms.data(), n_vectors);
@@ -362,7 +362,7 @@ class SuperKMeans {
         }
         {
             Eigen::Map<const MatrixR> centroids_mat(centroids, n_centroids, d);
-            Eigen::Map<VectorR> c_norms(centroid_norms.data(), n_centroids);
+            Eigen::Map<VectorR> c_norms(_centroid_norms.data(), n_centroids);
             c_norms.noalias() = centroids_mat.rowwise().squaredNorm();
         }
         
@@ -379,7 +379,7 @@ class SuperKMeans {
             n_centroids,
             d,
             vector_norms.data(),
-            centroid_norms.data(),
+            _centroid_norms.data(),
             assignments.data(),
             distances.data(),
             all_distances_buf.data()
@@ -402,8 +402,8 @@ class SuperKMeans {
     void InitAssignAndUpdateCentroids(
         const vector_value_t* SKM_RESTRICT data,
         const vector_value_t* SKM_RESTRICT rotated_initial_centroids,
-        const vector_value_t* SKM_RESTRICT data_norms,
-        const vector_value_t* SKM_RESTRICT centroid_norms,
+        const vector_value_t* SKM_RESTRICT _data_norms,
+        const vector_value_t* SKM_RESTRICT _centroid_norms,
         distance_t* SKM_RESTRICT all_distances,
         const size_t n
     ) {
@@ -413,37 +413,37 @@ class SuperKMeans {
             n,
             _n_clusters,
             _d,
-            data_norms,
-            centroid_norms,
+            _data_norms,
+            _centroid_norms,
             _assignments.data(),
             _distances.data(),
             all_distances
         );
         std::fill(_horizontal_centroids.begin(), _horizontal_centroids.end(), 0.0);
         std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
-        cost = 0.0;
+        _cost = 0.0;
         UpdateCentroids(data, n);
     }
 
     void AssignAndUpdateCentroidsPartialBatched(
         const vector_value_t* SKM_RESTRICT data,
         const vector_value_t* SKM_RESTRICT partial_rotated_centroids,
-        const vector_value_t* SKM_RESTRICT partial_data_norms,
-        const vector_value_t* SKM_RESTRICT partial_centroid_norms,
+        const vector_value_t* SKM_RESTRICT partial__data_norms,
+        const vector_value_t* SKM_RESTRICT partial__centroid_norms,
         distance_t* SKM_RESTRICT all_distances,
         const layout_t& pdx_centroids,
         const size_t n,
         size_t* out_not_pruned_counts = nullptr
     ) {
-        cost = 0.0;
+        _cost = 0.0;
         batch_computer::Batched_XRowMajor_YRowMajor_PartialD(
             data,
             partial_rotated_centroids,
             n,
             _n_clusters,
             _d,
-            partial_data_norms,
-            partial_centroid_norms,
+            partial__data_norms,
+            partial__centroid_norms,
             _assignments.data(),
             _distances.data(),
             all_distances,
@@ -558,7 +558,7 @@ class SuperKMeans {
     void ComputeCost() {
 #pragma clang loop vectorize(enable)
         for (size_t i = 0; i < _n_samples; ++i) {
-            cost += _distances[i];
+            _cost += _distances[i];
         }
     }
 
@@ -567,12 +567,12 @@ class SuperKMeans {
         Eigen::Map<const MatrixR> new_mat(_horizontal_centroids.data(), _n_clusters, _d);
         Eigen::Map<const MatrixR> prev_mat(_prev_centroids.data(), _n_clusters, _d);
         MatrixR diff = new_mat - prev_mat;
-        shift = 0.0f;
-#pragma omp parallel for reduction(+:shift) num_threads(g_n_threads)
+        _shift = 0.0f;
+#pragma omp parallel for reduction(+:_shift) num_threads(g_n_threads)
         for (size_t i = 0; i < _n_clusters; ++i) {
-            shift += diff.row(i).squaredNorm();
+            _shift += diff.row(i).squaredNorm();
         }
-        shift /= (_n_clusters * _d);
+        _shift /= (_n_clusters * _d);
     }
 
     void GetGTAssignmentsAndDistances(
@@ -593,7 +593,7 @@ class SuperKMeans {
             n,
             _d,
             query_norms.data(),
-            data_norms.data(),
+            _data_norms.data(),
             objective_k,
             _gt_assignments.data(),
             _gt_distances.data(),
@@ -613,7 +613,7 @@ class SuperKMeans {
             _n_clusters,
             _d,
             _query_norms.data(),
-            centroid_norms.data(),
+            _centroid_norms.data(),
             centroids_to_explore,
             promising_centroids.data(),
             distances.data(),
@@ -774,7 +774,7 @@ class SuperKMeans {
         partial_d_changed = (old_partial_d != _initial_partial_d);
         
         // else: within safe range (75% - 90% pruned), no adjustment needed
-        if (verbose && partial_d_changed) {
+        if (_verbose && partial_d_changed) {
             std::cout << "Tuning _initial_partial_d: " << old_partial_d << " -> " << _initial_partial_d
                       << " (avg not pruned: " << avg_not_pruned_pct * 100.0f << "%)" << std::endl;
         }
@@ -888,22 +888,22 @@ class SuperKMeans {
     std::vector<distance_t> _gt_distances;
     std::vector<distance_t> _query_norms;  // Cached query norms (computed once per Train call)
 
-    std::vector<vector_value_t> data_norms;
-    std::vector<vector_value_t> centroid_norms;
+    std::vector<vector_value_t> _data_norms;
+    std::vector<vector_value_t> _centroid_norms;
 
     const uint32_t _iters;
     const size_t _n_clusters;
     const float _sampling_fraction;
     const size_t _d;
     bool _trained;
-    bool verbose;
-    float cost;
-    float shift;
+    bool _verbose;
+    float _cost;
+    float _shift;
     size_t _n_samples;
     size_t _n_split;
     uint32_t _initial_partial_d = DEFAULT_INITIAL_PARTIAL_D;
     uint32_t _vertical_d;
-    float tol;
+    float _tol;
     float _recall = 0.0f;
     size_t _centroids_to_explore = 64;
 
