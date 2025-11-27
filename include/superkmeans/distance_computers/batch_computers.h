@@ -30,7 +30,25 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
 
   public:
 
-    static void Batched_XRowMajor_YRowMajor(
+    /**
+     * @brief Finds the nearest neighbor for each query vector using batched BLAS.
+     *
+     * Computes L2 distances between all query vectors (X) and reference vectors (Y)
+     * using the identity: ||x-y||² = ||x||² + ||y||² - 2*x·y
+     * The dot products are computed efficiently via matrix multiplication.
+     *
+     * @param x Query vectors in row-major layout (n_x × d)
+     * @param y Reference vectors in row-major layout (n_y × d)
+     * @param n_x Number of query vectors
+     * @param n_y Number of reference vectors
+     * @param d Dimensionality
+     * @param norms_x Pre-computed squared L2 norms of query vectors
+     * @param norms_y Pre-computed squared L2 norms of reference vectors
+     * @param out_knn Output: index of nearest neighbor for each query
+     * @param out_distances Output: distance to nearest neighbor for each query
+     * @param all_distances_buf Scratch buffer for batch distance computation (size: X_BATCH_SIZE × Y_BATCH_SIZE)
+     */
+    static void FindNearestNeighbor(
         const data_t* SKM_RESTRICT x,
         const data_t* SKM_RESTRICT y,
         const size_t n_x,
@@ -79,10 +97,27 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
             }
         }
-    };
+    }
 
-    // Batched Y version: Y is processed in batches, need to merge top-k across batches
-    static void Batched_XRowMajor_YRowMajor_TopK(
+    /**
+     * @brief Finds the k nearest neighbors for each query vector using batched BLAS.
+     *
+     * Similar to FindNearestNeighbor but maintains top-k candidates per query.
+     * Results are merged across Y batches using partial sort.
+     *
+     * @param x Query vectors in row-major layout (n_x × d)
+     * @param y Reference vectors in row-major layout (n_y × d)
+     * @param n_x Number of query vectors
+     * @param n_y Number of reference vectors
+     * @param d Dimensionality
+     * @param norms_x Pre-computed squared L2 norms of query vectors
+     * @param norms_y Pre-computed squared L2 norms of reference vectors
+     * @param k Number of nearest neighbors to find
+     * @param out_knn Output: indices of k nearest neighbors for each query (size: n_x × k)
+     * @param out_distances Output: distances to k nearest neighbors (size: n_x × k)
+     * @param all_distances_buf Scratch buffer for batch distance computation
+     */
+    static void FindKNearestNeighbors(
         const data_t* SKM_RESTRICT x,
         const data_t* SKM_RESTRICT y,
         const size_t n_x,
@@ -91,8 +126,8 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         const norms_t* SKM_RESTRICT norms_x,
         const norms_t* SKM_RESTRICT norms_y,
         const size_t k,
-        uint32_t* SKM_RESTRICT out_knn,      // Size: n_x * k
-        distance_t* SKM_RESTRICT out_distances, // Size: n_x * k
+        uint32_t* SKM_RESTRICT out_knn,
+        distance_t* SKM_RESTRICT out_distances,
         float* SKM_RESTRICT all_distances_buf
     ) {
         // Initialize output with infinity
@@ -167,11 +202,33 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
             }
         }
-    };
+    }
 
-    static void Batched_XRowMajor_YRowMajor_PartialD(
+    /**
+     * @brief Finds nearest neighbors using partial BLAS computation with PDX pruning.
+     *
+     * Hybrid approach that computes partial distances (first partial_d dimensions)
+     * via BLAS, then uses ADSampling pruning to skip full distance computation
+     * for unlikely candidates. Significantly faster than full BLAS when pruning
+     * is effective. To prune even better, we get a threshold from the previously assigned centroid.
+     *
+     * @param x Query vectors in row-major layout (n_x × d)
+     * @param y Reference vectors in row-major layout (n_y × d)
+     * @param n_x Number of query vectors
+     * @param n_y Number of reference vectors (centroids)
+     * @param d Full dimensionality
+     * @param norms_x Pre-computed partial squared L2 norms of queries (first partial_d dims)
+     * @param norms_y Pre-computed partial squared L2 norms of references (first partial_d dims)
+     * @param out_knn Input/Output: current assignment indices (updated with better assignments)
+     * @param out_distances Input/Output: current distances (updated with better distances)
+     * @param all_distances_buf Scratch buffer for batch distance computation
+     * @param pdx_centroids PDX layout containing centroids and searcher for pruned search
+     * @param partial_d Number of dimensions used for initial BLAS computation
+     * @param out_not_pruned_counts Optional output: count of non-pruned vectors per query (for tuning)
+     */
+    static void FindNearestNeighborWithPruning(
         const data_t* SKM_RESTRICT x,
-        const data_t* SKM_RESTRICT y, // Full-dimensional centroids (only partial_d dims used for BLAS)
+        const data_t* SKM_RESTRICT y,
         const size_t n_x,
         const size_t n_y,
         const size_t d,

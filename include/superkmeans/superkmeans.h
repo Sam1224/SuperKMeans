@@ -17,8 +17,6 @@ namespace skmeans {
 /**
  * @brief Configuration parameters for SuperKMeans clustering.
  *
- * This struct contains all tunable parameters for the clustering algorithm.
- * Default values are provided for all parameters.
  */
 struct SuperKMeansConfig {
     // Training parameters
@@ -395,7 +393,7 @@ class SuperKMeans {
         std::vector<distance_t> all_distances_buf(X_BATCH_SIZE * Y_BATCH_SIZE);
         
         // Use batched BLAS computation for assignment
-        batch_computer::Batched_XRowMajor_YRowMajor(
+        batch_computer::FindNearestNeighbor(
             vectors,
             centroids,
             n_vectors,
@@ -411,12 +409,14 @@ class SuperKMeans {
         return assignments;
     }
 
+    /** @brief Returns the number of clusters. */
+    inline size_t GetNClusters() const { return _n_clusters; }
+
+    /** @brief Returns whether the model has been trained. */
+    inline bool IsTrained() const { return _trained; }
+
+  protected:
     /**
-     * @brief Assign given data points to their nearest cluster.
-     *
-     * NOTE: The dimensionality of the data should match the dimensionality of the
-     * data that the clustering was trained on.
-     *
      * @brief Performs initial assignment and centroid update using BLAS-based computation.
      *
      * Used for the first iteration where full distance computation via BLAS is used
@@ -432,7 +432,7 @@ class SuperKMeans {
         const vector_value_t* SKM_RESTRICT rotated_initial_centroids,
         distance_t* SKM_RESTRICT all_distances
     ) {
-        batch_computer::Batched_XRowMajor_YRowMajor(
+        batch_computer::FindNearestNeighbor(
             data,
             rotated_initial_centroids,
             _n_samples,
@@ -470,7 +470,7 @@ class SuperKMeans {
         size_t* out_not_pruned_counts = nullptr
     ) {
         _cost = 0.0;
-        batch_computer::Batched_XRowMajor_YRowMajor_PartialD(
+        batch_computer::FindNearestNeighborWithPruning(
             data,
             _horizontal_centroids.data(),
             _n_samples,
@@ -659,7 +659,7 @@ class SuperKMeans {
         _tmp_distances_buffer.resize(X_BATCH_SIZE * Y_BATCH_SIZE);
         std::vector<distance_t> query_norms(n_queries);
         GetL2NormsRowMajor(queries, n_queries, query_norms.data());
-        batch_computer::Batched_XRowMajor_YRowMajor_TopK(
+        batch_computer::FindKNearestNeighbors(
             queries,
             data,
             n_queries,
@@ -690,7 +690,7 @@ class SuperKMeans {
         _tmp_distances_buffer.resize(X_BATCH_SIZE * Y_BATCH_SIZE);
         _promising_centroids.resize(n_queries * _centroids_to_explore);
         _recall_distances.resize(n_queries * _centroids_to_explore);
-        batch_computer::Batched_XRowMajor_YRowMajor_TopK(
+        batch_computer::FindKNearestNeighbors(
             queries,
             _horizontal_centroids.data(),
             n_queries,
@@ -730,13 +730,6 @@ class SuperKMeans {
         return sum_recall / static_cast<float>(n_queries);
     }
 
-    /** @brief Returns the number of clusters. */
-    inline size_t GetNClusters() const { return _n_clusters; }
-
-    /** @brief Returns whether the model has been trained. */
-    inline bool IsTrained() const { return _trained; }
-
-  protected:
     /**
      * @brief Generates initial centroids from the data.
      *
