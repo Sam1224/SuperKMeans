@@ -7,6 +7,7 @@
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.hpp"
 #include "superkmeans/pdx/layout.h"
+#include "superkmeans/profiler.hpp"
 #include <Eigen/Eigen/Dense>
 
 namespace skmeans {
@@ -249,14 +250,9 @@ class BatchComputer<l2, f32> {
         distance_t* SKM_RESTRICT out_distances,
         float* SKM_RESTRICT all_distances_buf,
         const layout_t& pdx_centroids,
-        TicToc& blas_tt,
-        TicToc& pdx_tt,
-        TicToc& norms_tt,
         uint32_t partial_d,
         size_t* out_not_pruned_counts = nullptr
     ) {
-        TicToc cur_blas_tt;
-        TicToc cur_pdx_tt;
         std::cout << "partial_d: " << partial_d << std::endl;
         
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
@@ -272,78 +268,75 @@ class BatchComputer<l2, f32> {
                     batch_n_y = n_y - j;
                 }
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
-                cur_blas_tt.Tic();
-                blas_tt.Tic();
-                Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
-                Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
-                distances_matrix.noalias() =
-                    x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
-                blas_tt.Toc();
-                cur_blas_tt.Toc();
-                norms_tt.Tic();
+                {
+                    SKM_PROFILE_SCOPE("search/blas");
+                    Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
+                    Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
+                    distances_matrix.noalias() =
+                        x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
+                }
+                {
+                    SKM_PROFILE_SCOPE("search/norms");
 #pragma omp parallel for num_threads(g_n_threads)
-                for (size_t r = 0; r < batch_n_x; ++r) {
-                    const auto i_idx = i + r;
-                    const float norm_x_i = norms_x[i_idx];
-                    float* row_p = distances_matrix.data() + r * batch_n_y;
+                    for (size_t r = 0; r < batch_n_x; ++r) {
+                        const auto i_idx = i + r;
+                        const float norm_x_i = norms_x[i_idx];
+                        float* row_p = distances_matrix.data() + r * batch_n_y;
 #pragma clang loop vectorize(enable)
-                    for (size_t c = 0; c < batch_n_y; ++c) {
-                        row_p[c] = -2.0f * row_p[c] + norm_x_i + norms_y[j + c];
+                        for (size_t c = 0; c < batch_n_y; ++c) {
+                            row_p[c] = -2.0f * row_p[c] + norm_x_i + norms_y[j + c];
+                        }
                     }
                 }
-                norms_tt.Toc();
-                cur_pdx_tt.Tic();
-                pdx_tt.Tic();
+                {
+                    SKM_PROFILE_SCOPE("search/pdx");
 #pragma omp parallel for num_threads(g_n_threads) schedule(dynamic, 8)
-                for (size_t r = 0; r < batch_n_x; ++r) {
-                    const auto i_idx = i + r;
-                    auto data_p = x + (i_idx * d);
-                    // Note that this will take the KNN from the previous batch loop
-                    const auto prev_assignment = out_knn[i_idx];
-                    distance_t dist_to_prev_centroid;
-                    if (j == 0) { // After this we always have the right distance in out_distances
-                        dist_to_prev_centroid = DistanceComputer<l2, f32>::Horizontal(
-                            prev_y + (prev_assignment * d), data_p, d
-                        );
-                    } else {
-                        dist_to_prev_centroid = out_distances[i_idx];
-                    }
-
-                    // PDXearch per vector
-                    knn_candidate_t assignment;
-                    auto partial_distances_p = distances_matrix.data() + r * batch_n_y;
-                    size_t local_not_pruned = 0;
-                    assignment =
-                        pdx_centroids.searcher
-                            ->Top1PartialSearchWithThresholdAndPartialDistances(
-                                data_p,
-                                dist_to_prev_centroid,
-                                prev_assignment,
-                                r,
-                                partial_distances_p,
-                                partial_d,
-                                j / VECTOR_CHUNK_SIZE, // start cluster_id
-                                (j + Y_BATCH_SIZE) /
-                                    VECTOR_CHUNK_SIZE, // end cluster_id; We use Y_BATCH_SIZE and
-                                                      // not batch_n_y because otherwise we
-                                                      // would not go up until incomplete
-                                                      // clusters
-                                out_not_pruned_counts != nullptr ? &local_not_pruned : nullptr
+                    for (size_t r = 0; r < batch_n_x; ++r) {
+                        const auto i_idx = i + r;
+                        auto data_p = x + (i_idx * d);
+                        // Note that this will take the KNN from the previous batch loop
+                        const auto prev_assignment = out_knn[i_idx];
+                        distance_t dist_to_prev_centroid;
+                        if (j == 0) { // After this we always have the right distance in out_distances
+                            dist_to_prev_centroid = DistanceComputer<l2, f32>::Horizontal(
+                                prev_y + (prev_assignment * d), data_p, d
                             );
-                    // Store not-pruned count for this X vector (accumulate across Y batches)
-                    if (out_not_pruned_counts != nullptr) {
-                        out_not_pruned_counts[i_idx] += local_not_pruned;
+                        } else {
+                            dist_to_prev_centroid = out_distances[i_idx];
+                        }
+
+                        // PDXearch per vector
+                        knn_candidate_t assignment;
+                        auto partial_distances_p = distances_matrix.data() + r * batch_n_y;
+                        size_t local_not_pruned = 0;
+                        assignment =
+                            pdx_centroids.searcher
+                                ->Top1PartialSearchWithThresholdAndPartialDistances(
+                                    data_p,
+                                    dist_to_prev_centroid,
+                                    prev_assignment,
+                                    r,
+                                    partial_distances_p,
+                                    partial_d,
+                                    j / VECTOR_CHUNK_SIZE, // start cluster_id
+                                    (j + Y_BATCH_SIZE) /
+                                        VECTOR_CHUNK_SIZE, // end cluster_id; We use Y_BATCH_SIZE and
+                                                          // not batch_n_y because otherwise we
+                                                          // would not go up until incomplete
+                                                          // clusters
+                                    out_not_pruned_counts != nullptr ? &local_not_pruned : nullptr
+                                );
+                        // Store not-pruned count for this X vector (accumulate across Y batches)
+                        if (out_not_pruned_counts != nullptr) {
+                            out_not_pruned_counts[i_idx] += local_not_pruned;
+                        }
+                        auto [assignment_idx, assignment_distance] = assignment;
+                        out_knn[i_idx] = assignment_idx;
+                        out_distances[i_idx] = assignment_distance;
                     }
-                    auto [assignment_idx, assignment_distance] = assignment;
-                    out_knn[i_idx] = assignment_idx;
-                    out_distances[i_idx] = assignment_distance;
                 }
-                pdx_tt.Toc();
-                cur_pdx_tt.Toc();
             }
         }
-        std::cout << " - BLAS  " << cur_blas_tt.accum_time / 1000000000.0 << std::endl;
-        std::cout << " - PDX  " << cur_pdx_tt.accum_time / 1000000000.0 << std::endl;
     }
 };
 

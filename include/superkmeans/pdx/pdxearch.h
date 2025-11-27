@@ -462,8 +462,6 @@ class PDXearch {
         thread_local uint32_t current_dimension_idx = 0;
         thread_local size_t current_cluster = 0;
 
-        size_t pruned_at = 0;
-
         // Setup previous top1
         pruning_threshold = prev_pruning_threshold;
         auto top_embedding = KNNCandidate<q>{};

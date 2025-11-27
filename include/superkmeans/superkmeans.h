@@ -10,6 +10,7 @@
 #include "superkmeans/distance_computers/batch_computers.hpp"
 #include "superkmeans/pdx/pdxearch.h"
 #include "superkmeans/pdx/utils.h"
+#include "superkmeans/profiler.hpp"
 
 namespace skmeans {
 template <Quantization q = f32, DistanceFunction alpha = l2, class Pruner = ADSamplingPruner<q>>
@@ -82,20 +83,20 @@ class SuperKMeans {
         const vector_value_t* SKM_RESTRICT data_p = data;
         _n_samples = GetNVectorsToSample(n);
 
-        _allocator_time.Tic();
+        {
+            SKM_PROFILE_SCOPE("allocator");
+            _centroids.resize(_n_clusters * _d);
+            _tmp_centroids.resize(_n_clusters * _d);
+            _prev_centroids.resize(_n_clusters * _d);
+            _cluster_sizes.resize(_n_clusters);
+            _reciprocal_cluster_sizes.resize(_n_clusters);
+            _assignments.resize(n);
+            _distances.resize(n);
 
-        _centroids.resize(_n_clusters * _d);
-        _tmp_centroids.resize(_n_clusters * _d);
-        _prev_centroids.resize(_n_clusters * _d);
-        _cluster_sizes.resize(_n_clusters);
-        _reciprocal_cluster_sizes.resize(_n_clusters);
-        _assignments.resize(n);
-        _distances.resize(n);
-
-        data_norms.resize(_n_samples);
-        centroid_norms.resize(_n_clusters);
+            data_norms.resize(_n_samples);
+            centroid_norms.resize(_n_clusters);
+        }
         std::vector<distance_t> all_distances(X_BATCH_SIZE * Y_BATCH_SIZE);
-        _allocator_time.Toc();
 
         // TODO(@lkuffo, med): If metric is dp, normalize the vectors so we can use l2
 
@@ -114,9 +115,10 @@ class SuperKMeans {
         std::cout << "Vertical D: " << _vertical_d << std::endl;
         std::cout << "Horizontal D: " << _d - _vertical_d << std::endl;
         std::cout << "Initial Partial D: " << _initial_partial_d << std::endl;
-        _allocator_time.Tic();
-        _aux_hor_centroids.resize(_n_clusters * _vertical_d);
-        _allocator_time.Toc();
+        {
+            SKM_PROFILE_SCOPE("allocator");
+            _aux_hor_centroids.resize(_n_clusters * _vertical_d);
+        }
         auto centroids_pdx_wrapper = GenerateCentroids(data_p, n);
         if (verbose) {
             std::cout << "Sampling data..." << std::endl;
@@ -128,13 +130,12 @@ class SuperKMeans {
         auto data_to_cluster = SampleVectors(data_p, data_samples_buffer, n, _n_samples);
 
         // TODO(@lkuffo, low): I don't like this rotated_initial_centroids variable
-        _allocator_time.Tic();
         std::vector<centroid_value_t> rotated_initial_centroids(_n_clusters * _d);
-        _allocator_time.Toc();
-        _rotator_time.Tic();
-        std::cout << "Rotating..." << std::endl;
-        _pruner->Rotate(_tmp_centroids.data(), rotated_initial_centroids.data(), _n_clusters);
-        _rotator_time.Toc();
+        {
+            SKM_PROFILE_SCOPE("rotator");
+            std::cout << "Rotating..." << std::endl;
+            _pruner->Rotate(_tmp_centroids.data(), rotated_initial_centroids.data(), _n_clusters);
+        }
 
         // Getting norms for data and initial centroids (full norms)
         GetL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
@@ -148,30 +149,27 @@ class SuperKMeans {
             if (verbose) {
                 std::cout << "Getting GT Assignments and Distances for " << n_queries << " queries..." << std::endl;
             }
-            _allocator_time.Tic();
-            _gt_assignments.resize(n_queries * objective_k);
-            _gt_distances.resize(n_queries * objective_k);
-            _allocator_time.Toc();
-            _rotator_time.Tic();
+            {
+                SKM_PROFILE_SCOPE("allocator");
+                _gt_assignments.resize(n_queries * objective_k);
+                _gt_distances.resize(n_queries * objective_k);
+            }
             // Create temporary buffer for rotated queries and rotate them
             rotated_queries.resize(n_queries * _d);
             if (sample_queries) {
                 std::cout << "Sampling queries from data..." << std::endl;
-                _sampling_time.Tic();
+                SKM_PROFILE_SCOPE("sampling");
                 SampleVectors<false>(data_to_cluster, rotated_queries, _n_samples, n_queries);
-                _sampling_time.Toc();
             } else {
                 // We already did a validation step to ensure that queries is not nullptr
-                _rotator_time.Tic();
+                SKM_PROFILE_SCOPE("rotator");
                 _pruner->Rotate(queries, rotated_queries.data(), n_queries);
-                _rotator_time.Toc();
             }
-
-            _rotator_time.Toc();
-            _gt_assignments_time.Tic();
-            GetGTAssignmentsAndDistances(data_to_cluster, _n_samples, rotated_queries.data(), n_queries, objective_k);
-            _gt_assignments_time.Toc();
-            std::cout << "TOTAL GT ASSIGNMENTS TIME " << _gt_assignments_time.accum_time / 1000000000.0 << std::endl;
+            {
+                SKM_PROFILE_SCOPE("gt_assignments");
+                GetGTAssignmentsAndDistances(data_to_cluster, _n_samples, rotated_queries.data(), n_queries, objective_k);
+            }
+            std::cout << "TOTAL GT ASSIGNMENTS TIME " << Profiler::Get().GetTimeSeconds("gt_assignments") << std::endl;
 
             // Print the assignments and distances of the first 10 queries
             // if (verbose) {
@@ -202,9 +200,8 @@ class SuperKMeans {
             PostprocessCentroids();
         }
         if (n_queries) {
-            _recall_time.Tic();
+            SKM_PROFILE_SCOPE("recall");
             float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
-            _recall_time.Toc();
             _recall = cur_recall;
         }
         size_t iter_idx = 1;
@@ -215,7 +212,7 @@ class SuperKMeans {
         // End of First iteration
 
         if (_iters <= 1) {
-            PrintTimes();
+            Profiler::Get().PrintHierarchical();
             return _centroids;
         }
 
@@ -244,9 +241,8 @@ class SuperKMeans {
                 if (n_queries) {
                     // Update centroid norms to match the NEW centroids (after ConsolidateCentroids)
                     GetL2NormsRowMajor(_tmp_centroids.data(), _n_clusters, centroid_norms.data());
-                    _recall_time.Tic();
+                    SKM_PROFILE_SCOPE("recall");
                     float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
-                    _recall_time.Toc();
                     _recall = cur_recall;
                 }
                 if (verbose)
@@ -257,18 +253,16 @@ class SuperKMeans {
             }
             _trained = true;
             if (verbose) {
-                PrintTimes();
+                Profiler::Get().PrintHierarchical();
             }
             return _centroids;
         }
 
 
         // Rest of iterations
-        _allocator_time.Tic();
         std::vector<vector_value_t> centroid_partial_norms(_n_clusters);
         // Buffer to store per-vector not-pruned counts for tuning _initial_partial_d
         std::vector<size_t> not_pruned_counts(_n_samples);
-        _allocator_time.Toc();
         GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, data_norms.data());
         for (; iter_idx < _iters; ++iter_idx) {
             GetL2NormsRowMajor(
@@ -306,9 +300,8 @@ class SuperKMeans {
                 // Update centroid norms with FULL norms for recall computation
                 // (PDX uses partial norms for distance computation, but recall needs full norms)
                 GetL2NormsRowMajor(_tmp_centroids.data(), _n_clusters, centroid_norms.data());
-                _recall_time.Tic();
+                SKM_PROFILE_SCOPE("recall");
                 float cur_recall = ComputeRecall(rotated_queries.data(), n_queries, objective_k, _centroids_to_explore);
-                _recall_time.Toc();
                 _recall = cur_recall;
             }
             if (verbose)
@@ -327,64 +320,11 @@ class SuperKMeans {
 
         _trained = true;
         if (verbose) {
-            PrintTimes();
+            Profiler::Get().PrintHierarchical();
         }
         return _centroids;
     }
 
-    void PrintTimes() {
-        const float total_time =
-            _total_search_time.accum_time + _allocator_time.accum_time + _rotator_time.accum_time +
-            _norms_calc_time.accum_time + _sampling_time.accum_time + _reordering_time.accum_time +
-            _total_centroids_update_time.accum_time + _grouping_time.accum_time +
-            _centroids_splitting.accum_time + _pdxify_time.accum_time + _shift_time.accum_time;
-        std::cout << std::fixed << std::setprecision(3);
-        std::cout << std::endl;
-        std::cout << "TOTAL SEARCH TIME " << _total_search_time.accum_time / 1000000000.0 << " ("
-                  << _total_search_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << " - BLAS " << _blas_total_time.accum_time / 1000000000.0 << " ("
-                  << _blas_total_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << " - PDX  " << _pdx_search_time.accum_time / 1000000000.0 << " ("
-                  << _pdx_search_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << " - NORMS  " << _blas_norms_time.accum_time / 1000000000.0 << " ("
-                  << _blas_norms_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL ALLOCATOR TIME " << _allocator_time.accum_time / 1000000000.0 << " ("
-                  << _allocator_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL ROTATOR TIME " << _rotator_time.accum_time / 1000000000.0 << " ("
-                  << _rotator_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL NORMS CALCULATION TIME " << _norms_calc_time.accum_time / 1000000000.0
-                  << " (" << _norms_calc_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL SAMPLING TIME " << _sampling_time.accum_time / 1000000000.0 << " ("
-                  << _sampling_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL UPDATE CENTROIDS TIME "
-                  << _total_centroids_update_time.accum_time / 1000000000.0 << " ("
-                  << _total_centroids_update_time.accum_time / total_time * 100 << "%) "
-                  << std::endl;
-        std::cout << "TOTAL SPLITTING TIME " << _centroids_splitting.accum_time / 1000000000.0
-                  << " (" << _centroids_splitting.accum_time / total_time * 100 << "%) "
-                  << std::endl;
-        std::cout << "TOTAL PDXIFYING TIME " << _pdxify_time.accum_time / 1000000000.0 << " ("
-                  << _pdxify_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL SHIFT TIME " << _shift_time.accum_time / 1000000000.0 << " ("
-                  << _shift_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL REORDERING TIME " << _reordering_time.accum_time / 1000000000.0 << " ("
-                  << _reordering_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL GROUPING TIME " << _grouping_time.accum_time / 1000000000.0 << " ("
-                  << _grouping_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL GT ASSIGNMENTS TIME " << _gt_assignments_time.accum_time / 1000000000.0 << " ("
-                  << _gt_assignments_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL RECALL TIME " << _recall_time.accum_time / 1000000000.0 << " ("
-                  << _recall_time.accum_time / total_time * 100 << "%) " << std::endl;
-        std::cout << "TOTAL (s) "
-                  << (_total_search_time.accum_time + _allocator_time.accum_time +
-                      _rotator_time.accum_time + _norms_calc_time.accum_time +
-                      _sampling_time.accum_time + _total_centroids_update_time.accum_time +
-                      _centroids_splitting.accum_time + _pdxify_time.accum_time +
-                      _shift_time.accum_time + _grouping_time.accum_time +
-                      _reordering_time.accum_time + _gt_assignments_time.accum_time) /
-                         1000000000.0
-                  << std::endl;
-    }
 
     /**
      * @brief Assign given data points to their nearest cluster.
@@ -439,46 +379,32 @@ class SuperKMeans {
         if (verbose) {
             std::cout << "Batch Calculation [START]..." << std::endl;
         }
-        _blas_search_time.Reset();
-        _blas_total_time.Tic();
-        _blas_search_time.Tic();
-        _total_search_time.Tic();
-        batch_computer::Batched_XRowMajor_YRowMajor(
-            data,
-            rotated_initial_centroids,
-            n,
-            _n_clusters,
-            _d,
-            data_norms,
-            centroid_norms,
-            _assignments.data(),
-            _distances.data(),
-            all_distances
-        );
-        _blas_search_time.Toc();
-        _blas_total_time.Toc();
-        _total_search_time.Toc();
-        if (verbose)
-            std::cout << "Total time for BLAS search (s): "
-                      << _blas_search_time.accum_time / 1000000000.0 << std::endl;
-        _all_search_time += _blas_search_time.accum_time / 1000000000.0;
+        {
+            SKM_PROFILE_SCOPE("search");
+            SKM_PROFILE_SCOPE("search/blas");
+            batch_computer::Batched_XRowMajor_YRowMajor(
+                data,
+                rotated_initial_centroids,
+                n,
+                _n_clusters,
+                _d,
+                data_norms,
+                centroid_norms,
+                _assignments.data(),
+                _distances.data(),
+                all_distances
+            );
+        }
         if (verbose) {
             std::cout << "Batch Calculation [DONE]..." << std::endl;
         }
-        _sampling_time.Tic();
         std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
         std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
-        _sampling_time.Toc();
         cost = 0.0;
-        _centroids_update_time.Reset();
-        _centroids_update_time.Tic();
-        _total_centroids_update_time.Tic();
-        UpdateCentroids(data, n);
-        _centroids_update_time.Toc();
-        _total_centroids_update_time.Toc();
-        if (verbose)
-            std::cout << "Total time for UpdateCentroid (s): "
-                      << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
+        {
+            SKM_PROFILE_SCOPE("update_centroids");
+            UpdateCentroids(data, n);
+        }
     }
 
     void AssignAndUpdateCentroidsPartialBatched(
@@ -491,53 +417,34 @@ class SuperKMeans {
         const size_t n,
         size_t* out_not_pruned_counts = nullptr
     ) {
-        _sampling_time.Tic();
         std::copy(_tmp_centroids.begin(), _tmp_centroids.end(), _prev_centroids.begin());
-        _sampling_time.Toc();
 
         cost = 0.0;
-        _search_time.Reset();
-        _search_time.Tic();
-        _total_search_time.Tic();
-        batch_computer::Batched_XRowMajor_YRowMajor_PartialD(
-            data,
-            partial_rotated_centroids,
-            _prev_centroids.data(),
-            n,
-            _n_clusters,
-            _d,
-            partial_data_norms,
-            partial_centroid_norms,
-            _assignments.data(),
-            _distances.data(),
-            all_distances,
-            pdx_centroids,
-            _blas_total_time,
-            _pdx_search_time,
-            _blas_norms_time,
-            _initial_partial_d,
-            out_not_pruned_counts
-        );
-        _search_time.Toc();
-        _total_search_time.Toc();
-        _sampling_time.Tic();
+        {
+            SKM_PROFILE_SCOPE("search");
+            batch_computer::Batched_XRowMajor_YRowMajor_PartialD(
+                data,
+                partial_rotated_centroids,
+                _prev_centroids.data(),
+                n,
+                _n_clusters,
+                _d,
+                partial_data_norms,
+                partial_centroid_norms,
+                _assignments.data(),
+                _distances.data(),
+                all_distances,
+                pdx_centroids,
+                _initial_partial_d,
+                out_not_pruned_counts
+            );
+        }
         std::fill(_tmp_centroids.begin(), _tmp_centroids.end(), 0.0);
         std::fill(_cluster_sizes.begin(), _cluster_sizes.end(), 0);
-        _sampling_time.Toc();
-        if (verbose)
-            std::cout << "Total time for BLAS+PDX search (s): "
-                      << _search_time.accum_time / 1000000000.0 << std::endl;
-        _all_search_time += _search_time.accum_time / 1000000000.0;
-
-        _centroids_update_time.Reset();
-        _centroids_update_time.Tic();
-        _total_centroids_update_time.Tic();
-        UpdateCentroids(data, n);
-        _centroids_update_time.Toc();
-        _total_centroids_update_time.Toc();
-        if (verbose)
-            std::cout << "Total time for UpdateCentroid (s): "
-                      << _centroids_update_time.accum_time / 1000000000.0 << std::endl;
+        {
+            SKM_PROFILE_SCOPE("update_centroids");
+            UpdateCentroids(data, n);
+        }
     }
 
     void UpdateCentroids(const vector_value_t* SKM_RESTRICT data, const size_t n) {
@@ -611,28 +518,31 @@ class SuperKMeans {
     }
 
     void ConsolidateCentroids() {
-        _centroids_splitting.Tic();
+        SKM_PROFILE_SCOPE("consolidate");
+        {
+            SKM_PROFILE_SCOPE("consolidate/splitting");
 #pragma omp parallel for if (g_n_threads > 1) num_threads(g_n_threads)
-        for (size_t i = 0; i < _n_clusters; ++i) {
-            auto _tmp_centroids_p = _tmp_centroids.data() + i * _d;
-            if (_cluster_sizes[i] == 0) {
-                continue;
-            }
-            float mult_factor = 1.0 / _cluster_sizes[i];
+            for (size_t i = 0; i < _n_clusters; ++i) {
+                auto _tmp_centroids_p = _tmp_centroids.data() + i * _d;
+                if (_cluster_sizes[i] == 0) {
+                    continue;
+                }
+                float mult_factor = 1.0 / _cluster_sizes[i];
 #pragma clang loop vectorize(enable)
-            for (size_t j = 0; j < _d; ++j) {
-                _tmp_centroids_p[j] *= mult_factor;
+                for (size_t j = 0; j < _d; ++j) {
+                    _tmp_centroids_p[j] *= mult_factor;
+                }
             }
+            SplitClusters();
         }
-        SplitClusters();
-        _centroids_splitting.Toc();
-        _pdxify_time.Tic();
-        //! This updates the object within the pdx_layout wrapper
-        PDXLayout<q, alpha, Pruner>::template PDXify<false>(
-            _tmp_centroids.data(), _centroids.data(), _n_clusters, _d
-        );
-        CentroidsToAuxiliaryHorizontal();
-        _pdxify_time.Toc();
+        {
+            SKM_PROFILE_SCOPE("consolidate/pdxify");
+            //! This updates the object within the pdx_layout wrapper
+            PDXLayout<q, alpha, Pruner>::template PDXify<false>(
+                _tmp_centroids.data(), _centroids.data(), _n_clusters, _d
+            );
+            CentroidsToAuxiliaryHorizontal();
+        }
     }
 
     void ComputeCost() {
@@ -643,7 +553,7 @@ class SuperKMeans {
     }
 
     void ComputeShift() {
-        _shift_time.Tic();
+        SKM_PROFILE_SCOPE("shift");
         Eigen::Map<const MatrixR> new_mat(_tmp_centroids.data(), _n_clusters, _d);
         Eigen::Map<const MatrixR> prev_mat(_prev_centroids.data(), _n_clusters, _d);
         MatrixR diff = new_mat - prev_mat;
@@ -653,7 +563,6 @@ class SuperKMeans {
             shift += diff.row(i).squaredNorm();
         }
         shift /= (_n_clusters * _d);
-        _shift_time.Toc();
     }
 
     void GetGTAssignmentsAndDistances(
@@ -738,45 +647,44 @@ class SuperKMeans {
         const vector_value_t* SKM_RESTRICT data,
         const size_t n
     ) {
-        _sampling_time.Tic();
-        auto tmp_centroids_p = _tmp_centroids.data();
-        // Equidistant sampling similar to DuckDB's
-        // const auto jumps = static_cast<size_t>(std::floor(1.0 * n / _n_clusters));
-        // for (size_t i = 0; i < n; i += jumps) {
-        //     // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
-        //     memcpy(
-        //         (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
-        //     );
-        //     tmp_centroids_p += _d;
-        // }
-        // First `n` samples similar to FAISS'
-        for (size_t i = 0; i < _n_clusters; i += 1) {
-            // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
-            memcpy(
-                (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
-            );
-            tmp_centroids_p += _d;
+        {
+            SKM_PROFILE_SCOPE("sampling");
+            auto tmp_centroids_p = _tmp_centroids.data();
+            // Equidistant sampling similar to DuckDB's
+            // const auto jumps = static_cast<size_t>(std::floor(1.0 * n / _n_clusters));
+            // for (size_t i = 0; i < n; i += jumps) {
+            //     // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
+            //     memcpy(
+            //         (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
+            //     );
+            //     tmp_centroids_p += _d;
+            // }
+            // First `n` samples similar to FAISS'
+            for (size_t i = 0; i < _n_clusters; i += 1) {
+                // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
+                memcpy(
+                    (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
+                );
+                tmp_centroids_p += _d;
+            }
         }
-        _sampling_time.Toc();
         // We populate the _centroids buffer with the centroids in the PDX layout
-        _allocator_time.Tic();
         std::vector<centroid_value_t> rotated_centroids(_n_clusters * _d);
-        _allocator_time.Toc();
-        _rotator_time.Tic();
-        _pruner->Rotate(_tmp_centroids.data(), rotated_centroids.data(), _n_clusters);
-        _rotator_time.Toc();
-        _pdxify_time.Tic();
-        PDXLayout<q, alpha, Pruner>::template PDXify<false>(
-            rotated_centroids.data(), _centroids.data(), _n_clusters, _d
-        );
-        _pdxify_time.Toc();
-        _sampling_time.Tic();
+        {
+            SKM_PROFILE_SCOPE("rotator");
+            _pruner->Rotate(_tmp_centroids.data(), rotated_centroids.data(), _n_clusters);
+        }
+        {
+            SKM_PROFILE_SCOPE("consolidate/pdxify");
+            PDXLayout<q, alpha, Pruner>::template PDXify<false>(
+                rotated_centroids.data(), _centroids.data(), _n_clusters, _d
+            );
+        }
         //! We wrap _centroids and _aux_hor_centroids in the PDXLayout wrapper
         //! Any updates to these objects is reflected in the PDXLayout
         auto pdx_centroids = PDXLayout<q, alpha, Pruner>(
             _centroids.data(), *_pruner, _n_clusters, _d, _aux_hor_centroids.data()
         );
-        _sampling_time.Toc();
         return pdx_centroids;
     }
 
@@ -785,11 +693,10 @@ class SuperKMeans {
         const size_t n,
         vector_value_t* SKM_RESTRICT out_norm
     ) {
-        _norms_calc_time.Tic();
+        SKM_PROFILE_SCOPE("norms_calc");
         Eigen::Map<const MatrixR> e_data(data, n, _d);
         Eigen::Map<VectorR> e_norms(out_norm, n);
         e_norms.noalias() = e_data.leftCols(_initial_partial_d).rowwise().squaredNorm();
-        _norms_calc_time.Toc();
     }
 
     void GetL2NormsRowMajor(
@@ -797,11 +704,10 @@ class SuperKMeans {
         const size_t n,
         vector_value_t* SKM_RESTRICT out_norm
     ) {
-        _norms_calc_time.Tic();
+        SKM_PROFILE_SCOPE("norms_calc");
         Eigen::Map<const MatrixR> e_data(data, n, _d);
         Eigen::Map<VectorR> e_norms(out_norm, n);
         e_norms.noalias() = e_data.rowwise().squaredNorm();
-        _norms_calc_time.Toc();
     }
 
     void CentroidsToAuxiliaryHorizontal() {
@@ -816,11 +722,10 @@ class SuperKMeans {
         vector_value_t* SKM_RESTRICT out_norm,
         const size_t partial_d
     ) {
-        _norms_calc_time.Tic();
+        SKM_PROFILE_SCOPE("norms_calc");
         Eigen::Map<const MatrixR> e_data(data, n, _d);
         Eigen::Map<VectorR> e_norms(out_norm, n);
         e_norms.noalias() = e_data.leftCols(partial_d).rowwise().squaredNorm();
-        _norms_calc_time.Toc();
     }
 
     /**
@@ -910,42 +815,42 @@ class SuperKMeans {
         const vector_value_t* tmp_data_buffer_p = nullptr;
         std::vector<vector_value_t> samples_tmp;
         // TODO(@lkuffo, medium): If DP, normalize here while taking the samples
-        _sampling_time.Tic();
-        if (n_samples < n) {
-            samples_tmp.resize(n_samples * _d);
-            const auto jumps = static_cast<size_t>(std::floor((1.0 * n) / n_samples));
-            for (size_t i = 0; i < n_samples; i++) {
-                size_t src_vector_idx = i * jumps;
-                memcpy(
-                    (void*) (samples_tmp.data() + i * _d),
-                    (void*) (data + src_vector_idx * _d),
-                    sizeof(vector_value_t) * _d
-                );
+        {
+            SKM_PROFILE_SCOPE("sampling");
+            if (n_samples < n) {
+                samples_tmp.resize(n_samples * _d);
+                const auto jumps = static_cast<size_t>(std::floor((1.0 * n) / n_samples));
+                for (size_t i = 0; i < n_samples; i++) {
+                    size_t src_vector_idx = i * jumps;
+                    memcpy(
+                        (void*) (samples_tmp.data() + i * _d),
+                        (void*) (data + src_vector_idx * _d),
+                        sizeof(vector_value_t) * _d
+                    );
+                }
+                tmp_data_buffer_p = samples_tmp.data();
+            } else {
+                tmp_data_buffer_p = data; // Zero-copy
             }
-            tmp_data_buffer_p = samples_tmp.data();
-        } else {
-            tmp_data_buffer_p = data; // Zero-copy
         }
-        _sampling_time.Toc();
 
         std::cout << "n_samples: " << n_samples << std::endl;
 
         // TODO(@lkuffo, crit): This buffer is a headache
-        _allocator_time.Tic();
         data_samples_buffer.resize(n_samples * _d);
-        _allocator_time.Toc();
-        _rotator_time.Tic();
-        std::cout << "Rotating 1..." << std::endl;
-        if (ROTATE) {
-            _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), n_samples);
-        } else {
-            memcpy(
-                (void*) data_samples_buffer.data(),
-                (void*) tmp_data_buffer_p,
-                sizeof(vector_value_t) * n_samples * _d
-            );
+        {
+            SKM_PROFILE_SCOPE("rotator");
+            std::cout << "Rotating 1..." << std::endl;
+            if (ROTATE) {
+                _pruner->Rotate(tmp_data_buffer_p, data_samples_buffer.data(), n_samples);
+            } else {
+                memcpy(
+                    (void*) data_samples_buffer.data(),
+                    (void*) tmp_data_buffer_p,
+                    sizeof(vector_value_t) * n_samples * _d
+                );
+            }
         }
-        _rotator_time.Toc();
         return data_samples_buffer.data();
     }
 
@@ -983,25 +888,5 @@ class SuperKMeans {
     float _recall = 0.0f;
     size_t _centroids_to_explore = 64;
 
-    TicToc _grouping_time;
-    TicToc _reordering_time;
-    TicToc _search_time;
-    TicToc _blas_search_time;
-    TicToc _blas_total_time;
-    TicToc _centroids_update_time;
-    TicToc _total_centroids_update_time;
-    TicToc _centroids_splitting;
-    TicToc _allocator_time;
-    TicToc _rotator_time;
-    TicToc _sampling_time;
-    TicToc _norms_calc_time;
-    TicToc _total_search_time;
-    TicToc _pdxify_time;
-    TicToc _pdx_search_time;
-    TicToc _shift_time;
-    TicToc _blas_norms_time;
-    TicToc _gt_assignments_time;
-    TicToc _recall_time;
-    float _all_search_time = 0.0;
 };
 } // namespace skmeans
