@@ -25,6 +25,8 @@ class SuperKMeans {
     using VectorR = Eigen::VectorXf;
     using batch_computer = BatchComputer<alpha, q>;
 
+    static constexpr size_t RECALL_CONVERGENCE_PATIENCE = 2;
+
   public:
     SuperKMeans(
         size_t n_clusters,
@@ -33,7 +35,7 @@ class SuperKMeans {
         float sampling_fraction = 0.50,
         bool verbose = false,
         uint32_t n_threads = 1,
-        float tol = 1e-5,
+        float tol = 1e-8,
         float recall_tol = 0.001f
     )
         : _iters(iters), _n_clusters(n_clusters), _sampling_fraction(sampling_fraction),
@@ -809,7 +811,7 @@ class SuperKMeans {
      * 
      * Convergence is detected when either:
      * - Shift is below tolerance (_shift < _tol)
-     * - Recall hasn't improved by more than _recall_tol in 2 consecutive iterations (when tracking recall)
+     * - Recall hasn't improved by more than _recall_tol in RECALL_CONVERGENCE_PATIENCE consecutive iterations (when tracking recall)
      * 
      * @param tracking_recall Whether recall is being tracked (n_queries > 0)
      * @param best_recall Reference to the best recall seen so far (updated if current is better)
@@ -841,11 +843,11 @@ class SuperKMeans {
             } else {
                 // No significant improvement
                 iters_without_improvement++;
-                if (iters_without_improvement >= 2) {
+                if (iters_without_improvement >= RECALL_CONVERGENCE_PATIENCE) {
                     if (_verbose)
                         std::cout << "Converged at iteration " << iter_idx + 1 
                                   << " (recall " << _recall << " hasn't improved by more than " 
-                                  << _recall_tol << " in 2 iterations, best: " << best_recall << ")" << std::endl;
+                                  << _recall_tol << " in " << RECALL_CONVERGENCE_PATIENCE << " iterations, best: " << best_recall << ")" << std::endl;
                     return true;
                 }
             }
