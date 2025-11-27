@@ -6,7 +6,6 @@
 #include <cassert>
 #include "superkmeans/distance_computers/base_computers.hpp"
 #include "superkmeans/pdx/index_base/pdx_ivf.hpp"
-#include "superkmeans/pdx/index_base/pdx_ivf2.hpp"
 #include "superkmeans/pdx/pruners/adsampling.hpp"
 #include "superkmeans/pdx/utils.h"
 

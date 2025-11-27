@@ -80,18 +80,6 @@ int main(int argc, char* argv[]) {
     // PDXifying
     bool BENCHMARK_PDXIFY = true;
     bool BENCHMARK_ADSAMPLING = false;
-    if (BENCHMARK_PDXIFY) {
-        ankerl::nanobench::Bench().epochs(1).epochIterations(5000).run("PDXify[FULL]", [&]() {
-            skmeans::PDXLayout<>::PDXify<true>(pdx_vec.data(), pdx_out.data(), n, d);
-        });
-        skmeans::PDXLayout<>::CheckBlockTranspose(pdx_vec.data(), pdx_out.data(), n, d);
-        skmeans::PDXLayout<>::CheckBlockTranspose(pdx_vec.data(), pdx_out.data(), n, d);
-        ankerl::nanobench::Bench().epochs(1).epochIterations(5000).run("PDXify", [&]() {
-            skmeans::PDXLayout<>::PDXify<false>(pdx_vec.data(), pdx_out.data(), n, d);
-        });
-        skmeans::PDXLayout<>::CheckBlockTransposeNonFull(pdx_vec.data(), pdx_out.data(), n, d, 576, 192);
-        // std::cout << "Distance: " << distance << std::endl;
-    }
 
     // Rotation
     n = 65536 * 1;
