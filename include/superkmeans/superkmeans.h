@@ -536,6 +536,8 @@ class SuperKMeans {
 
     /**
      * @brief Handles empty clusters by splitting large clusters.
+     * Taken from Faiss implementation:
+     * https://github.com/facebookresearch/faiss/blob/main/faiss/Clustering.cpp
      *
      * When a cluster becomes empty (no points assigned), this method splits
      * a large cluster to repopulate it. Selection is probabilistic based on
@@ -1066,6 +1068,9 @@ class SuperKMeans {
     std::unique_ptr<Pruner> _pruner;
 
     // === Centroid data ===
+    // TODO(@lkuffo, high): 3 copies of the centroids? Can we do better?
+    //    We can trivially avoid _partial_horizontal_centroids by using the full horizontal centroids in PDXearch.
+    //    We can also avoid _prev_centroids if we dont care about the shift convergence check.
     std::vector<centroid_value_t> _centroids;                    // PDX-layout centroids
     std::vector<centroid_value_t> _horizontal_centroids;         // Row-major centroids
     std::vector<centroid_value_t> _prev_centroids;               // Previous iteration centroids
