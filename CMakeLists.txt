@@ -48,21 +48,7 @@ FetchContent_MakeAvailable(faiss)
 # CMAKE_SOURCE_DIR: ----------------------------------------------------------------------------------------------------
 add_compile_definitions(CMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
-include_directories(include extern extern/lorann/lorann)
-
-# Legacy benchmarks and tests (kept for compatibility)
-add_executable(bench_kmeans_t.out bench_kmeans.cpp)
-add_executable(bench_kmeans_faiss.out bench_kmeans_faiss.cpp)
-
-# Link BLAS to all targets (if found)
-target_link_libraries(bench_kmeans_faiss.out PRIVATE faiss ${BLAS_LINK_LIBRARIES})
-target_link_libraries(bench_kmeans_t.out PRIVATE ${BLAS_LINK_LIBRARIES})
-
-# Link FFTW if available
-if (FFTW_FOUND)
-    message(STATUS "Linking FFTW: ${FFTW_FLOAT_THREADS_LIB}")
-    target_link_libraries(bench_kmeans_t.out PRIVATE ${FFTW_FLOAT_LIB} ${FFTW_FLOAT_THREADS_LIB})
-endif()
+include_directories(include extern)
 
 # Add test and benchmark subdirectories
 add_subdirectory(tests)

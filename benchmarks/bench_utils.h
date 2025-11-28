@@ -1,0 +1,220 @@
+#pragma once
+
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+namespace bench_utils {
+
+// Dataset configurations: name -> (num_vectors, num_dimensions)
+const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS = {
+    {"mxbai", {769382, 1024}},
+    {"openai", {999000, 1536}},
+    {"arxiv", {2253000, 768}},
+    {"sift", {1000000, 128}},
+    {"fmnist", {60000, 784}},
+    {"glove100", {1183514, 100}},
+    {"glove50", {1183514, 50}},
+    {"gist", {1000000, 960}},
+    {"contriever", {990000, 768}}
+};
+
+// Standard exploration fractions for recall computation
+const std::vector<float> EXPLORE_FRACTIONS = {
+    0.001f, 0.002f, 0.003f, 0.004f, 0.005f, 0.006f, 0.007f, 0.008f, 0.009f,
+    0.0100f, 0.0125f, 0.0150f, 0.0175f, 0.0200f, 0.0225f, 0.0250f, 0.0275f,
+    0.0300f, 0.0325f, 0.0350f, 0.0375f, 0.0400f, 0.0425f, 0.0450f, 0.0475f, 0.0500f,
+    0.1f
+};
+
+// KNN values to test
+const std::vector<int> KNN_VALUES = {10, 100};
+
+/**
+ * @brief Parse ground truth JSON file.
+ *
+ * Simple JSON parser for our specific use case: {"query_idx": [vector_ids...], ...}
+ *
+ * @param filename Path to JSON file
+ * @return Map of query index to vector IDs
+ */
+inline std::unordered_map<int, std::vector<int>> parse_ground_truth_json(const std::string& filename) {
+    std::unordered_map<int, std::vector<int>> gt_map;
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        return gt_map;
+    }
+
+    std::string line;
+    std::getline(file, line); // Read entire file as one line (it's a single JSON object)
+
+    // Simple parser: look for "query_idx": [vector_ids...]
+    size_t pos = 0;
+    while ((pos = line.find("\"", pos)) != std::string::npos) {
+        size_t key_start = pos + 1;
+        size_t key_end = line.find("\"", key_start);
+        if (key_end == std::string::npos) break;
+
+        std::string key_str = line.substr(key_start, key_end - key_start);
+        int query_idx = std::stoi(key_str);
+
+        // Find the array of vector IDs
+        size_t arr_start = line.find("[", key_end);
+        size_t arr_end = line.find("]", arr_start);
+        if (arr_start == std::string::npos || arr_end == std::string::npos) break;
+
+        std::string arr_str = line.substr(arr_start + 1, arr_end - arr_start - 1);
+        std::vector<int> vector_ids;
+        std::istringstream iss(arr_str);
+        std::string token;
+        while (std::getline(iss, token, ',')) {
+            // Remove whitespace
+            token.erase(0, token.find_first_not_of(" \t\n\r"));
+            token.erase(token.find_last_not_of(" \t\n\r") + 1);
+            if (!token.empty()) {
+                vector_ids.push_back(std::stoi(token));
+            }
+        }
+
+        gt_map[query_idx] = vector_ids;
+        pos = arr_end + 1;
+    }
+
+    return gt_map;
+}
+
+/**
+ * @brief Compute recall@K for different exploration fractions.
+ *
+ * @tparam AssignmentType Type of assignment values (int, uint32_t, faiss::idx_t, etc.)
+ * @param gt_map Ground truth map (query_idx -> vector_ids)
+ * @param assignments Cluster assignments for all data vectors
+ * @param queries Query vectors (row-major, n_queries × d)
+ * @param centroids Centroid vectors (row-major, n_clusters × d)
+ * @param n_queries Number of queries
+ * @param n_clusters Number of clusters
+ * @param d Dimensionality
+ * @param knn Number of ground truth neighbors to consider
+ * @return Vector of tuples (centroids_to_explore, explore_fraction, recall)
+ */
+template<typename AssignmentType>
+std::vector<std::tuple<int, float, float>> compute_recall(
+    const std::unordered_map<int, std::vector<int>>& gt_map,
+    const std::vector<AssignmentType>& assignments,
+    const float* queries,
+    const float* centroids,
+    size_t n_queries,
+    size_t n_clusters,
+    size_t d,
+    int knn
+) {
+    // Compute distances from queries to centroids
+    // Using L2 distance: ||q - c||^2 = ||q||^2 + ||c||^2 - 2*q·c
+    std::vector<float> query_norms(n_queries);
+    std::vector<float> centroid_norms(n_clusters);
+
+    // Compute query norms
+    for (size_t i = 0; i < n_queries; ++i) {
+        float norm = 0.0f;
+        for (size_t j = 0; j < d; ++j) {
+            float val = queries[i * d + j];
+            norm += val * val;
+        }
+        query_norms[i] = norm;
+    }
+
+    // Compute centroid norms
+    for (size_t i = 0; i < n_clusters; ++i) {
+        float norm = 0.0f;
+        for (size_t j = 0; j < d; ++j) {
+            float val = centroids[i * d + j];
+            norm += val * val;
+        }
+        centroid_norms[i] = norm;
+    }
+
+    // Compute query-centroid distances
+    std::vector<float> distances(n_queries * n_clusters);
+    for (size_t i = 0; i < n_queries; ++i) {
+        for (size_t j = 0; j < n_clusters; ++j) {
+            // Dot product
+            float dot = 0.0f;
+            for (size_t k = 0; k < d; ++k) {
+                dot += queries[i * d + k] * centroids[j * d + k];
+            }
+            distances[i * n_clusters + j] = query_norms[i] + centroid_norms[j] - 2.0f * dot;
+        }
+    }
+
+    std::vector<std::tuple<int, float, float>> results;
+    for (float explore_frac : EXPLORE_FRACTIONS) {
+        int centroids_to_explore = std::max(1, static_cast<int>(n_clusters * explore_frac));
+
+        // For each query, find top-N nearest centroids
+        float total_recall = 0.0f;
+
+        for (int query_idx = 0; query_idx < static_cast<int>(n_queries); ++query_idx) {
+            if (gt_map.find(query_idx) == gt_map.end()) {
+                continue;
+            }
+
+            // Get distances for this query
+            std::vector<std::pair<float, int>> query_distances;
+            for (size_t j = 0; j < n_clusters; ++j) {
+                query_distances.push_back({distances[query_idx * n_clusters + j], static_cast<int>(j)});
+            }
+
+            // Sort by distance to get top-N centroids
+            std::partial_sort(query_distances.begin(),
+                            query_distances.begin() + centroids_to_explore,
+                            query_distances.end());
+
+            // Create set of top centroid indices
+            std::unordered_set<int> top_centroids;
+            for (int t = 0; t < centroids_to_explore; ++t) {
+                top_centroids.insert(query_distances[t].second);
+            }
+
+            // Check how many ground truth vectors have their assigned centroid in top-N
+            const auto& gt_vector_ids = gt_map.at(query_idx);
+            int found = 0;
+            int gt_count = std::min(knn, static_cast<int>(gt_vector_ids.size()));
+
+            for (int i = 0; i < gt_count; ++i) {
+                int vector_id = gt_vector_ids[i];
+                int assigned_centroid = static_cast<int>(assignments[vector_id]);
+                if (top_centroids.find(assigned_centroid) != top_centroids.end()) {
+                    ++found;
+                }
+            }
+
+            float query_recall = static_cast<float>(found) / static_cast<float>(gt_count);
+            total_recall += query_recall;
+        }
+
+        float average_recall = total_recall / static_cast<float>(gt_map.size());
+        results.push_back(std::make_tuple(centroids_to_explore, explore_frac, average_recall));
+    }
+
+    return results;
+}
+
+/**
+ * @brief Print recall results in a formatted table.
+ *
+ * @param results Vector of tuples (centroids_to_explore, explore_fraction, recall)
+ * @param knn KNN value used for this result set
+ */
+inline void print_recall_results(const std::vector<std::tuple<int, float, float>>& results, int knn) {
+    printf("\n--- Recall@%d ---\n", knn);
+    for (const auto& [centroids_to_explore, explore_frac, recall] : results) {
+        printf("Recall@%4d (%5.2f%% of centroids): %.4f\n",
+               centroids_to_explore, explore_frac * 100.0f, recall);
+    }
+}
+
+} // namespace bench_utils
