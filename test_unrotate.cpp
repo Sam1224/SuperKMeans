@@ -30,7 +30,7 @@ int main() {
         }
         
         // Create pruner (which has Rotate/Unrotate)
-        skmeans::ADSamplingPruner<skmeans::f32> pruner(d, 2.1f);
+        skmeans::ADSamplingPruner<skmeans::Quantization::f32> pruner(d, 2.1f);
         
         // Rotate
         std::vector<float> rotated(n * d);

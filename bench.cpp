@@ -57,19 +57,19 @@ int main(int argc, char* argv[]) {
     for (float& x : vec_b)
         x = dist(gen);
 
-    // skmeans::skmeans_distance_t<skmeans::f32> distance = 0.0;
+    // skmeans::skmeans_distance_t<skmeans::Quantization::f32> distance = 0.0;
     // ankerl::nanobench::Bench().minEpochIterations(500000).run("d=128 | f32 | l2", [&]() {
     //     ankerl::nanobench::doNotOptimizeAway(
-    //         distance = skmeans::DistanceComputer<skmeans::l2,
-    //         skmeans::f32>::Horizontal(vec_a.data(), vec_b.data(), DIM)
+    //         distance = skmeans::DistanceComputer<skmeans::DistanceFunction::f32,
+    //         skmeans::Quantization::f32>::Horizontal(vec_a.data(), vec_b.data(), DIM)
     //     );
     // });
     // std::cout << "Distance: " << distance << std::endl;
 
     size_t n = 4096;
     size_t d = 768;
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> pdx_vec(d * n);
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> pdx_out(d * n);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> pdx_vec(d * n);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> pdx_out(d * n);
     for (float& x : pdx_vec)
         x = dist(gen);
     for (float& x : pdx_out)
@@ -84,13 +84,13 @@ int main(int argc, char* argv[]) {
     // Rotation
     n = 65536 * 1;
     d = 512;
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> raw_in(d * n);
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> rotated_out(d * n);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> raw_in(d * n);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> rotated_out(d * n);
     if (BENCHMARK_ADSAMPLING) {
-        skmeans::ADSamplingPruner<skmeans::f32> ads(d, 1.5);
+        skmeans::ADSamplingPruner<skmeans::Quantization::f32> ads(d, 1.5);
         ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("RotationMatrixCreation", [&]() {
             ankerl::nanobench::doNotOptimizeAway(
-                ads = skmeans::ADSamplingPruner<skmeans::f32>(d, 1.5)
+                ads = skmeans::ADSamplingPruner<skmeans::Quantization::f32>(d, 1.5)
             );
         });
         ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("Rotate", [&]() {
@@ -104,9 +104,9 @@ int main(int argc, char* argv[]) {
     size_t n_clusters = 1024;
     uint32_t n_iters = 1;
     float sampling_fraction = 1.0;
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> data = make_blobs(n, d, n_clusters);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> data = make_blobs(n, d, n_clusters);
 
-    auto kmeans_state = skmeans::SuperKMeans<skmeans::f32, skmeans::l2>(n_clusters, d, n_iters, sampling_fraction, true);
+    auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, n_iters, sampling_fraction, true);
     ankerl::nanobench::Bench().epochs(1).epochIterations(1).run("SKMeans", [&]() {
         auto centroids = kmeans_state.Train(data.data(), n);
     });

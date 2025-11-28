@@ -61,3 +61,7 @@ else()
     target_link_libraries(test_assign.out PRIVATE "-framework Accelerate")
     target_link_libraries(test_unrotate.out PRIVATE "-framework Accelerate")
 endif()
+
+# Add test and benchmark subdirectories
+add_subdirectory(tests)
+add_subdirectory(benchmarks)

@@ -19,7 +19,7 @@
 
 int main(int argc, char* argv[]) {
     // Choose dataset by name. You can also pass the dataset name as the first CLI argument.
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("mxbai");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("sift");
 
     const std::unordered_map<std::string, std::pair<size_t, size_t>> dataset_params = {
         {"mxbai", {769382, 1024}},
@@ -94,6 +94,7 @@ int main(int argc, char* argv[]) {
     config.unrotate_centroids = false;
     config.perform_assignments = false;
     config.early_termination = false;
+    config.sampling_fraction = 0.2;
 
     auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
         n_clusters, d, config

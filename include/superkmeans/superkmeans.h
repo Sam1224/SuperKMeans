@@ -153,7 +153,7 @@ class SuperKMeans {
             SKM_PROFILE_SCOPE("allocator");
             _partial_horizontal_centroids.resize(_n_clusters * _vertical_d);
         }
-        auto centroids_pdx_wrapper = GenerateCentroids(data_p, n);
+        auto centroids_pdx_wrapper = GenerateCentroids(data_p);
         if (_config.verbose) {
             std::cout << "Sampling data..." << std::endl;
         }
@@ -307,7 +307,6 @@ class SuperKMeans {
             // Tune _initial_partial_d based on the average not-pruned percentage
             bool partial_d_changed = false;
             float avg_not_pruned_pct = TuneInitialPartialD(not_pruned_counts.data(), _n_samples, _n_clusters, partial_d_changed);
-            
             // If _initial_partial_d changed, recompute the data norms with the new partial_d
             if (partial_d_changed) {
                 GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
@@ -745,8 +744,7 @@ class SuperKMeans {
      * @return PDXLayout wrapper for the centroids
      */
     PDXLayout<q, alpha> GenerateCentroids(
-        const vector_value_t* SKM_RESTRICT data,
-        const size_t n
+        const vector_value_t* SKM_RESTRICT data
     ) {
         {
             SKM_PROFILE_SCOPE("sampling");

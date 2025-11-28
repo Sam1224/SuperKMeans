@@ -57,11 +57,11 @@ int main(int argc, char* argv[]) {
     omp_set_num_threads(THREADS);
     constexpr size_t EPOCHS = 5;
     constexpr size_t ITERATIONS = 5;
-    const auto dims = skmeans::PDXLayout<skmeans::f32>::GetDimensionSplit(d);
+    const auto dims = skmeans::PDXLayout<skmeans::Quantization::f32>::GetDimensionSplit(d);
     const size_t horizontal_d = dims.horizontal_d;
     const size_t vertical_d = dims.vertical_d;
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> data = make_blobs(n, d, 512);
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> centroids = make_blobs(centroids_n, d, 512);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> data = make_blobs(n, d, 512);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> centroids = make_blobs(centroids_n, d, 512);
     std::cout << "Total distance calculations: " << n * centroids_n << std::endl;
     std::cout << "Vertical D: " << vertical_d << std::endl;
     std::cout << "Horizontal D: " << horizontal_d << std::endl;
@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
     std::vector<float> out_distances(n);
     std::vector<float> all_distances(n * centroids_n);
     ankerl::nanobench::Bench().epochs(EPOCHS).epochIterations(ITERATIONS).run("Batch_XRowMajor_YColMajor", [&]() {
-        skmeans::BatchComputer<skmeans::l2, skmeans::f32>::Batch_XRowMajor_YColMajor(
+        skmeans::BatchComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Batch_XRowMajor_YColMajor(
             data.data(),
             centroids.data(),
             n,
@@ -136,13 +136,13 @@ int main(int argc, char* argv[]) {
             for (size_t j = 0; j < centroids_n; ++j) {
                 if constexpr (THREADS > 1) {
                     ankerl::nanobench::doNotOptimizeAway(
-                        local_distance = skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::Horizontal(
+                        local_distance = skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
                             data_p, centroids_p, d
                         )
                     );
                 } else {
                     ankerl::nanobench::doNotOptimizeAway(
-                        distance = skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::Horizontal(
+                        distance = skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
                             data_p, centroids_p, d
                         )
                     );
@@ -158,8 +158,8 @@ int main(int argc, char* argv[]) {
     //
     size_t p_math = 0;
     std::vector<float> distances_vertical_serial(skmeans::VECTOR_CHUNK_SIZE);
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> pdx_full_centroids(centroids_n * d);
-    skmeans::PDXLayout<skmeans::f32>::PDXify<true>(
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> pdx_full_centroids(centroids_n * d);
+    skmeans::PDXLayout<skmeans::Quantization::f32>::PDXify<true>(
         centroids.data(), pdx_full_centroids.data(), centroids_n, d
     );
     ankerl::nanobench::Bench().epochs(EPOCHS).epochIterations(ITERATIONS).run("Vertical Serial", [&]() {
@@ -180,14 +180,14 @@ int main(int argc, char* argv[]) {
                         distances_vertical_serial_local.begin(),
                         distances_vertical_serial_local.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlock(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlock(
                         data_p, centroids_p, 0, d, distances_vertical_serial_local.data()
                     );
                 } else {
                     std::fill(
                         distances_vertical_serial.begin(), distances_vertical_serial.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlock(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlock(
                         data_p, centroids_p, 0, d, distances_vertical_serial.data()
                     );
                 }
@@ -205,8 +205,8 @@ int main(int argc, char* argv[]) {
     //
     std::vector<float> distances_pdx(skmeans::VECTOR_CHUNK_SIZE);
     std::fill(distances_pdx.begin(), distances_pdx.end(), 0);
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> pdx_centroids(centroids_n * d);
-    skmeans::PDXLayout<skmeans::f32>::PDXify<false>(
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> pdx_centroids(centroids_n * d);
+    skmeans::PDXLayout<skmeans::Quantization::f32>::PDXify<false>(
         centroids.data(), pdx_centroids.data(), centroids_n, d
     );
     ankerl::nanobench::Bench().epochs(EPOCHS).epochIterations(ITERATIONS).run("PDX Serial", [&]() {
@@ -225,12 +225,12 @@ int main(int argc, char* argv[]) {
             for (size_t j = 0; j < centroids_n; j += skmeans::VECTOR_CHUNK_SIZE) {
                 if constexpr (THREADS > 1) {
                     std::fill(distances_local_full.begin(), distances_local_full.end(), 0.0f);
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlock(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlock(
                         data_p, centroids_p, 0, vertical_d, distances_local_full.data()
                     );
                 } else {
                     std::fill(distances_pdx.begin(), distances_pdx.end(), 0.0f);
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlock(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlock(
                         data_p, centroids_p, 0, vertical_d, distances_pdx.data()
                     );
                 }
@@ -242,14 +242,14 @@ int main(int argc, char* argv[]) {
                         if constexpr (THREADS > 1) {
                             ankerl::nanobench::doNotOptimizeAway(
                                 distances_local_full[t] +=
-                                skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::Horizontal(
+                                skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
                                     data_p + k, centroids_p, skmeans::H_DIM_SIZE
                                 )
                             );
                         } else {
                             ankerl::nanobench::doNotOptimizeAway(
                                 distances_pdx[t] +=
-                                skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::Horizontal(
+                                skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
                                     data_p + k, centroids_p, skmeans::H_DIM_SIZE
                                 )
                             );
@@ -272,8 +272,8 @@ int main(int argc, char* argv[]) {
     size_t data_p_math = 0;
     constexpr size_t BATCH_SIZE_64 = 64;
     std::vector<float> distances_batch_vertical(BATCH_SIZE_64 * skmeans::VECTOR_CHUNK_SIZE);
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> pdx_full_data(n * d);
-    skmeans::PDXLayout<skmeans::f32>::PDXify<true>(data.data(), pdx_full_data.data(), n, d);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> pdx_full_data(n * d);
+    skmeans::PDXLayout<skmeans::Quantization::f32>::PDXify<true>(data.data(), pdx_full_data.data(), n, d);
     ankerl::nanobench::Bench().epochs(EPOCHS).epochIterations(ITERATIONS).run("Vertical Batched 64", [&]() {
         auto data_p = pdx_full_data.data();
         // For each point
@@ -292,14 +292,14 @@ int main(int argc, char* argv[]) {
                         distances_batch_vertical_local.begin(),
                         distances_batch_vertical_local.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch64(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch64(
                         data_p, centroids_p, 0, d, distances_batch_vertical_local.data()
                     );
                 } else {
                     std::fill(
                         distances_batch_vertical.begin(), distances_batch_vertical.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch64(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch64(
                         data_p, centroids_p, 0, d, distances_batch_vertical.data()
                     );
                 }
@@ -345,7 +345,7 @@ int main(int argc, char* argv[]) {
                         distances_batch_vertical_v2_local.begin(),
                         distances_batch_vertical_v2_local.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch64V2(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch64V2(
                         data_p, centroids_p, 0, d,
                         // distances_batch_vertical_v2.data()
                         distances_batch_vertical_v2_local.data()
@@ -354,7 +354,7 @@ int main(int argc, char* argv[]) {
                     std::fill(
                         distances_batch_vertical_v2.begin(), distances_batch_vertical_v2.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch64V2(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch64V2(
                         data_p, centroids_p, 0, d, distances_batch_vertical_v2.data()
                     );
                 }
@@ -402,7 +402,7 @@ int main(int argc, char* argv[]) {
                         distances_batch_vertical_64_simd_local.begin(),
                         distances_batch_vertical_64_simd_local.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch64SIMD(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch64SIMD(
                         data_p, centroids_p, 0, d, distances_batch_vertical_64_simd_local.data()
                     );
                 } else {
@@ -410,7 +410,7 @@ int main(int argc, char* argv[]) {
                         distances_batch_vertical_64_simd.begin(),
                         distances_batch_vertical_64_simd.end(), 0.0f
                     );
-                    skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch64SIMD(
+                    skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch64SIMD(
                         data_p, centroids_p, 0, d, distances_batch_vertical_64_simd.data()
                     );
                 }
@@ -434,7 +434,7 @@ int main(int argc, char* argv[]) {
     // constexpr size_t BATCH_SIZE_8 = 8;
     // std::vector<float> distances_batch_vertical_8_v2(BATCH_SIZE_8 * skmeans::VECTOR_CHUNK_SIZE);
     // std::fill(distances_batch_vertical_8_v2.begin(), distances_batch_vertical_8_v2.end(), 0.0f);
-    // skmeans::PDXLayout<skmeans::f32>::PDXify<true, BATCH_SIZE_8>(data.data(),
+    // skmeans::PDXLayout<skmeans::Quantization::f32>::PDXify<true, BATCH_SIZE_8>(data.data(),
     // pdx_full_data.data(), n, d);
     // ankerl::nanobench::Bench().epochs(EPOCHS).epochIterations(ITERATIONS).run("Vertical Batched 8 v2", [&]() {
     //     auto data_p = pdx_full_data.data();
@@ -446,7 +446,7 @@ int main(int argc, char* argv[]) {
     //         for (size_t j = 0; j < centroids_n; j+=skmeans::VECTOR_CHUNK_SIZE) {
     //             std::fill(distances_batch_vertical_8_v2.begin(),
     //             distances_batch_vertical_8_v2.end(), 0.0f);
-    //             skmeans::DistanceComputer<skmeans::l2, skmeans::f32>::VerticalBlockBatch8V2(
+    //             skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::VerticalBlockBatch8V2(
     //                 data_p, centroids_p, 0, d, distances_batch_vertical_v2.data()
     //             );
     //             centroids_p += skmeans::VECTOR_CHUNK_SIZE * d;

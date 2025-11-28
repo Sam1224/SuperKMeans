@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
     std::cout << "sampling_fraction=" << sampling_fraction << " (using all data)\n\n";
 
     // Load data
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> data;
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> data;
     try {
         data.resize(n * d);
     } catch (const std::bad_alloc& e) {
@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
 
     // Create and train k-means
     std::cout << "Running Train()...\n";
-    auto kmeans = skmeans::SuperKMeans<skmeans::f32, skmeans::l2>(
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
         n_clusters, d, n_iters, sampling_fraction, true, THREADS
     );
     
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
 
     // Now run Assign() with raw data and unrotated centroids
     std::cout << "Running Assign() with raw data and unrotated centroids...\n";
-    auto assign_assignments = skmeans::SuperKMeans<skmeans::f32, skmeans::l2>::Assign(
+    auto assign_assignments = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>::Assign(
         data.data(),
         centroids.data(),
         n,

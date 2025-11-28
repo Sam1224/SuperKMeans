@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
     int n_iters = 1;
     float sampling_fraction = 1.0;
 
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> data(n * d);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> data(n * d);
     std::ifstream file(std::string{CMAKE_SOURCE_DIR} + "/data_random.bin", std::ios::binary);
     if (!file) {
         std::cerr << "Failed to open " << std::endl;

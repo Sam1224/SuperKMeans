@@ -166,7 +166,7 @@ int main(int argc, char* argv[]) {
     volatile size_t sub_work = 8;
     constexpr size_t epochs = 20;
     constexpr size_t iters = 20000;
-    std::vector<skmeans::skmeans_value_t<skmeans::f32>> distances(n_vectors * n_clusters);
+    std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> distances(n_vectors * n_clusters);
     for (float& x : distances)
         x = dist(gen);
     std::vector<float> pruning_thresholds = {0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.3f, 0.5f, 0.8f};
