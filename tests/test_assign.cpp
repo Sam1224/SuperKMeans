@@ -134,8 +134,8 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SyntheticClusters) {
     auto centroids = kmeans.Train(data.data(), n);
 
     const auto& train_assignments = kmeans._assignments;
-    auto assign_assignments = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>::Assign(
-        data.data(), centroids.data(), n, n_clusters, d
+    auto assign_assignments = kmeans.Assign(
+        data.data(), centroids.data(), n, n_clusters
     );
 
     // For synthetic clusterable data with no sampling, assignments should match exactly or very closely
