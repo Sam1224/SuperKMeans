@@ -45,9 +45,11 @@ class TicToc {
 const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS = {
     {"mxbai", {769382, 1024}},
     {"openai", {999000, 1536}},
+    {"wiki", {260372, 3072}},
     {"arxiv", {2253000, 768}},
     {"sift", {1000000, 128}},
     {"fmnist", {60000, 784}},
+    {"glove200", {1183514, 200}},
     {"glove100", {1183514, 100}},
     {"glove50", {1183514, 50}},
     {"gist", {1000000, 960}},

@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     auto it = bench_utils::DATASET_PARAMS.find(dataset);
     if (it == bench_utils::DATASET_PARAMS.end()) {
         std::cerr << "Unknown dataset '" << dataset << "'\n";
-        std::cerr << "Known datasets: mxbai, openai, arxiv, sift, fmnist, glove100, glove50\n";
+        std::cerr << "Known datasets: mxbai, openai, wiki, arxiv, sift, fmnist, glove200, glove100, glove50\n";
         return 1;
     }
 

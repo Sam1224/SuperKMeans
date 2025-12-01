@@ -3,7 +3,7 @@
 # End-to-end benchmark runner for all algorithms
 # Usage: ./end_to_end.sh [-b build_dir] [dataset1] [dataset2] ...
 #   -b build_dir: Build directory (default: ../cmake-build-release)
-#   datasets: Dataset names (default: mxbai openai arxiv sift fmnist glove100 glove50 gist contriever)
+#   datasets: Dataset names (default: mxbai openai wiki arxiv sift fmnist glove200 glove100 glove50 gist contriever)
 #
 # Examples:
 #   ./end_to_end.sh                      # Run all datasets with default build dir
@@ -37,7 +37,7 @@ if [ $# -gt 0 ]; then
     DATASETS=("$@")
 else
     # Default datasets
-    DATASETS=(mxbai openai arxiv sift fmnist glove100 glove50 gist contriever)
+    DATASETS=(mxbai openai wiki arxiv sift fmnist glove200 glove100 glove50 gist contriever)
 fi
 
 # Get absolute paths

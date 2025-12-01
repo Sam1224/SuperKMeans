@@ -61,8 +61,6 @@ compile_commands.json
 CMakeUserPresets.json
 DartConfiguration.
 
-*.json
-
 *.cmake
 *.ipynb_checkpoints
 *.db
