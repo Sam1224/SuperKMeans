@@ -62,22 +62,6 @@ class PDXearch {
     }
 
     /**
-     * @brief Counts how many vectors can be pruned given the current threshold.
-     */
-    template <Quantization Q = q>
-    SKM_NO_INLINE
-    void EvaluatePruningPredicateScalar(
-        uint32_t& n_pruned,
-        size_t n_vectors,
-        skmeans_distance_t<Q>* pruning_distances,
-        const skmeans_distance_t<Q> pruning_threshold
-    ) {
-        for (size_t vector_idx = 0; vector_idx < n_vectors; ++vector_idx) {
-            n_pruned += pruning_distances[vector_idx] >= pruning_threshold;
-        }
-    }
-
-    /**
      * @brief Updates the positions array to keep only non-pruned candidates.
      */
     template <Quantization Q = q>

@@ -45,3 +45,15 @@ target_link_libraries(pareto_superkmeans.out PRIVATE ${BENCH_COMMON_LIBS})
 # Ad-hoc benchmark (verbose mode, no CSV output)
 add_executable(ad_hoc_superkmeans.out ad_hoc_superkmeans.cpp)
 target_link_libraries(ad_hoc_superkmeans.out PRIVATE ${BENCH_COMMON_LIBS})
+
+# Microbenchmark for InitPositionsArray SIMD optimization
+add_executable(microbenchmark_init_positions_array.out microbenchmark_init_positions_array.cpp)
+target_link_libraries(microbenchmark_init_positions_array.out PRIVATE ${BENCH_COMMON_LIBS})
+
+# Microbenchmark for FlipSign SIMD optimization
+add_executable(microbenchmark_flip_sign.out microbenchmark_flip_sign.cpp)
+target_link_libraries(microbenchmark_flip_sign.out PRIVATE ${BENCH_COMMON_LIBS})
+
+# Microbenchmark for Horizontal L2 distance kernels
+add_executable(microbenchmark_horizontal_kernels.out microbenchmark_horizontal_kernels.cpp)
+target_link_libraries(microbenchmark_horizontal_kernels.out PRIVATE ${BENCH_COMMON_LIBS})
