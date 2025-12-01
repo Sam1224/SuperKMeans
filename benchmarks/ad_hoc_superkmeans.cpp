@@ -1,6 +1,10 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
 #define EIGEN_USE_THREADS
 
+#ifndef BENCHMARK_TIME
+#define BENCHMARK_TIME = true
+#endif
+
 #include <iostream>
 #include <fstream>
 #include <omp.h>
@@ -81,7 +85,7 @@ int main(int argc, char* argv[]) {
 
     skmeans::SuperKMeansConfig config;
     config.iters = n_iters;
-    config.verbose = false;
+    config.verbose = true;  // ENABLED VERBOSE MODE
     config.n_threads = THREADS;
     config.objective_k = 10;
     config.ann_explore_fraction = 0.01f;
@@ -145,6 +149,8 @@ int main(int argc, char* argv[]) {
         );
         bench_utils::print_recall_results(results_knn_100, 100);
 
+        // COMMENTED OUT: CSV writing for ad-hoc testing
+        /*
         // Create comprehensive config dictionary with all parameters
         std::unordered_map<std::string, std::string> config_map;
         config_map["iters"] = std::to_string(config.iters);
@@ -169,6 +175,7 @@ int main(int argc, char* argv[]) {
             static_cast<int>(THREADS), final_objective, config_map,
             results_knn_10, results_knn_100
         );
+        */
     } else {
         if (!gt_file.good()) {
             std::cout << "\nGround truth file not found: " << gt_filename << std::endl;

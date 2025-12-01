@@ -282,15 +282,24 @@ private:
 #define SKM_CONCAT_IMPL(x, y) x##y
 #define SKM_CONCAT(x, y) SKM_CONCAT_IMPL(x, y)
 
-// SKM_PROFILE_SCOPE creates a scoped timer with the given name
-#define SKM_PROFILE_SCOPE(name) ::skmeans::ScopedTimer SKM_CONCAT(_skm_timer_, __LINE__)(name)
+// Profiling macros - only enabled when BENCHMARK_TIME is defined
+#ifdef BENCHMARK_TIME
+    // SKM_PROFILE_SCOPE creates a scoped timer with the given name
+    #define SKM_PROFILE_SCOPE(name) ::skmeans::ScopedTimer SKM_CONCAT(_skm_timer_, __LINE__)(name)
 
-// SKM_PROFILE_FUNCTION creates a scoped timer with the function name
-#define SKM_PROFILE_FUNCTION() SKM_PROFILE_SCOPE(__func__)
+    // SKM_PROFILE_FUNCTION creates a scoped timer with the function name
+    #define SKM_PROFILE_FUNCTION() SKM_PROFILE_SCOPE(__func__)
 
-// Manual start/stop macros
-#define SKM_PROFILE_START(name) ::skmeans::Profiler::Get().Start(name)
-#define SKM_PROFILE_STOP(name) ::skmeans::Profiler::Get().Stop(name)
+    // Manual start/stop macros
+    #define SKM_PROFILE_START(name) ::skmeans::Profiler::Get().Start(name)
+    #define SKM_PROFILE_STOP(name) ::skmeans::Profiler::Get().Stop(name)
+#else
+    // No-op macros when profiling is disabled
+    #define SKM_PROFILE_SCOPE(name) ((void)0)
+    #define SKM_PROFILE_FUNCTION() ((void)0)
+    #define SKM_PROFILE_START(name) ((void)0)
+    #define SKM_PROFILE_STOP(name) ((void)0)
+#endif
 
 } // namespace skmeans
 

@@ -1,10 +1,6 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
 #define EIGEN_USE_THREADS
 
-#ifndef BENCHMARK_TIME
-#define BENCHMARK_TIME = true
-#endif
-
 #include <iostream>
 #include <fstream>
 #include <omp.h>
