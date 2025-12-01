@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     const std::string algorithm = "superkmeans";
 
     // Choose dataset by name. You can also pass the dataset name as the first CLI argument.
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("fmnist");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("mxbai");
 
     // Experiment name can be passed as second argument (default: "end_to_end")
     std::string experiment_name = (argc > 2) ? std::string(argv[2]) : std::string("end_to_end");
@@ -94,14 +94,25 @@ int main(int argc, char* argv[]) {
     config.sampling_fraction = sampling_fraction;
     config.use_blas_only = false;
 
-    auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-        n_clusters, d, config
-    );
 
     // Time the training
+    auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+       n_clusters, d, config
+    );
+    std::vector<float> centroids = kmeans_state.Train(data.data(), n //,
+        //queries.data(), n_queries
+        );
     bench_utils::TicToc timer;
     timer.Tic();
-    std::vector<float> centroids = kmeans_state.Train(data.data(), n, queries.data(), n_queries);
+    for (int i = 0; i < 2; i++) {
+        auto _tmp_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+           n_clusters, d, config
+        );
+        std::vector<float> _tmp_centroids = _tmp_state.Train(
+            data.data(), n //,
+            // queries.data(), n_queries
+            );
+    }
     timer.Toc();
     double construction_time_ms = timer.GetMilliseconds();
 
@@ -112,6 +123,8 @@ int main(int argc, char* argv[]) {
     std::cout << "\nTraining completed in " << construction_time_ms << " ms" << std::endl;
     std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters << ")" << std::endl;
     std::cout << "Final objective: " << final_objective << std::endl;
+
+    return 0;
 
     // Compute recall if ground truth file exists
     std::string gt_filename = bench_utils::get_ground_truth_path(dataset);

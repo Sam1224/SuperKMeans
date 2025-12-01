@@ -178,6 +178,7 @@ class SIMDComputer<DistanceFunction::l2, Quantization::f32> {
         }
     }
 
+    SKM_NO_INLINE
     static distance_t Horizontal(
         const data_t* SKM_RESTRICT vector1,
         const data_t* SKM_RESTRICT vector2,
@@ -247,6 +248,66 @@ class SIMDUtilsComputer<Quantization::f32> {
         auto out_bits = reinterpret_cast<uint32_t*>(out);
         for (; j < d; ++j) {
             out_bits[j] = data_bits[j] ^ masks[j];
+        }
+    }
+
+    /**
+     * @brief Initializes positions array with indices of non-pruned vectors using NEON.
+     *
+     * Optimized for cases where only ~2% of vectors pass the threshold test.
+     * Processes 4 floats at a time and uses branch prediction hints.
+     *
+     * @param n_vectors Number of vectors to process
+     * @param n_vectors_not_pruned Output: count of vectors passing threshold (updated)
+     * @param pruning_positions Output array of indices that passed (compacted)
+     * @param pruning_threshold Threshold value for comparison
+     * @param pruning_distances Input array of distances to compare
+     */
+    static void InitPositionsArray(
+        size_t n_vectors,
+        size_t& n_vectors_not_pruned,
+        uint32_t* pruning_positions,
+        data_t pruning_threshold,
+        const data_t* pruning_distances
+    ) {
+        n_vectors_not_pruned = 0;
+        size_t vector_idx = 0;
+
+        constexpr size_t k_simd_width = 4;
+        const size_t n_vectors_simd = (n_vectors / k_simd_width) * k_simd_width;
+
+        float32x4_t threshold_vec = vdupq_n_f32(pruning_threshold);
+
+        // Process 4 elements at a time
+        for (; vector_idx < n_vectors_simd; vector_idx += k_simd_width) {
+            // Load 4 distances
+            float32x4_t distances = vld1q_f32(pruning_distances + vector_idx);
+
+            // Compare: dist < threshold (returns 0xFFFFFFFF for true, 0 for false)
+            uint32x4_t cmp_result = vcltq_f32(distances, threshold_vec);
+
+            // Check if any comparison passed using horizontal max
+            // If all are 0 (no element passed), vmaxvq_u32 returns 0
+            uint32_t any_passed = vmaxvq_u32(cmp_result);
+
+            // Branch hint: likely that no elements passed (98% of the time based on 2% selectivity)
+            if (SKM_UNLIKELY(any_passed)) {
+                // At least one element passed - handle with scalar code
+                uint32_t mask[4];
+                vst1q_u32(mask, cmp_result);
+
+                for (size_t i = 0; i < k_simd_width; ++i) {
+                    pruning_positions[n_vectors_not_pruned] = vector_idx + i;
+                    n_vectors_not_pruned += (mask[i] != 0);
+                }
+            }
+            // else: all comparisons failed, skip these 4 elements
+        }
+
+        // Handle remaining elements (< 4)
+        for (; vector_idx < n_vectors; ++vector_idx) {
+            pruning_positions[n_vectors_not_pruned] = vector_idx;
+            n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;
         }
     }
 };

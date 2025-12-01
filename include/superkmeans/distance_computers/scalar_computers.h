@@ -157,6 +157,29 @@ class ScalarUtilsComputer<Quantization::f32> {
             out_bits[j] = data_bits[j] ^ masks[j];
         }
     }
+
+    /**
+     * @brief Initializes positions array with indices of non-pruned vectors (scalar fallback).
+     *
+     * @param n_vectors Number of vectors to process
+     * @param n_vectors_not_pruned Output: count of vectors passing threshold (updated)
+     * @param pruning_positions Output array of indices that passed (compacted)
+     * @param pruning_threshold Threshold value for comparison
+     * @param pruning_distances Input array of distances to compare
+     */
+    static void InitPositionsArray(
+        size_t n_vectors,
+        size_t& n_vectors_not_pruned,
+        uint32_t* pruning_positions,
+        data_t pruning_threshold,
+        const data_t* pruning_distances
+    ) {
+        n_vectors_not_pruned = 0;
+        for (size_t vector_idx = 0; vector_idx < n_vectors; ++vector_idx) {
+            pruning_positions[n_vectors_not_pruned] = vector_idx;
+            n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;
+        }
+    }
 };
 
 } // namespace skmeans

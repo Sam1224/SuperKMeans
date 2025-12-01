@@ -34,7 +34,7 @@
 #endif
 
 #ifndef SKM_NO_INLINE
-#define SKM_NO_INLINE // __attribute__((noinline))
+#define SKM_NO_INLINE __attribute__((noinline))
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)

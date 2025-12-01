@@ -52,6 +52,7 @@ class PDXearch {
      * @brief Retrieves the pruning threshold from the pruner.
      */
     template <Quantization Q = q>
+    SKM_NO_INLINE
     void GetPruningThreshold(
         KNNCandidate<Q>& best_candidate,
         skmeans_distance_t<Q>& pruning_threshold,
@@ -64,6 +65,7 @@ class PDXearch {
      * @brief Counts how many vectors can be pruned given the current threshold.
      */
     template <Quantization Q = q>
+    SKM_NO_INLINE
     void EvaluatePruningPredicateScalar(
         uint32_t& n_pruned,
         size_t n_vectors,
@@ -79,6 +81,7 @@ class PDXearch {
      * @brief Updates the positions array to keep only non-pruned candidates.
      */
     template <Quantization Q = q>
+    SKM_NO_INLINE
     void EvaluatePruningPredicateOnPositionsArray(
         size_t n_vectors,
         size_t& n_vectors_not_pruned,
@@ -98,6 +101,7 @@ class PDXearch {
      * @brief Initializes the positions array with indices of non-pruned vectors.
      */
     template <Quantization Q = q>
+    SKM_NO_INLINE
     void InitPositionsArray(
         size_t n_vectors,
         size_t& n_vectors_not_pruned,
@@ -105,11 +109,13 @@ class PDXearch {
         skmeans_distance_t<Q> pruning_threshold,
         skmeans_distance_t<Q>* pruning_distances
     ) {
-        n_vectors_not_pruned = 0;
-        for (size_t vector_idx = 0; vector_idx < n_vectors; ++vector_idx) {
-            pruning_positions[n_vectors_not_pruned] = vector_idx;
-            n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;
-        }
+        UtilsComputer<Q>::InitPositionsArray(
+            n_vectors,
+            n_vectors_not_pruned,
+            pruning_positions,
+            pruning_threshold,
+            pruning_distances
+        );
     }
 
     /**
@@ -134,6 +140,7 @@ class PDXearch {
      * @param initial_not_pruned_out Optional output for initial non-pruned count
      */
     template <Quantization Q = q>
+    SKM_NO_INLINE
     void Prune(
         const skmeans_value_t<Q>* SKM_RESTRICT query,
         const skmeans_value_t<Q>* SKM_RESTRICT data,
@@ -262,6 +269,7 @@ class PDXearch {
     /**
      * @brief Converts distances back to original domain (for u8 quantization).
      */
+    SKM_NO_INLINE
     void BuildResultSet(KNNCandidate_t& best_candidate) {
         // We return distances in the original domain
         if constexpr (q == Quantization::u8) {
@@ -289,6 +297,7 @@ class PDXearch {
      * @param initial_not_pruned_accum Optional accumulator for not-pruned statistics
      * @return Best candidate found (index and distance)
      */
+    SKM_NO_INLINE
     KNNCandidate_t Top1PartialSearchWithThresholdAndPartialDistances(
         const float* SKM_RESTRICT query,
         const float prev_pruning_threshold,

@@ -48,6 +48,7 @@ class UtilsComputer {
 
   public:
     constexpr static auto FlipSign = computer::FlipSign;
+    constexpr static auto InitPositionsArray = computer::InitPositionsArray;
 };
 
 } // namespace skmeans

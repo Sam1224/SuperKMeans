@@ -309,6 +309,70 @@ class SIMDUtilsComputer<f32> {
             out_bits[j] = data_bits[j] ^ masks[j];
         }
     }
+
+    /**
+     * @brief Initializes positions array with indices of non-pruned vectors using AVX-512.
+     *
+     * Optimized for cases where only ~2% of vectors pass the threshold test.
+     * Processes 16 floats at a time and uses vpcompressd for efficient scatter.
+     *
+     * @param n_vectors Number of vectors to process
+     * @param n_vectors_not_pruned Output: count of vectors passing threshold (updated)
+     * @param pruning_positions Output array of indices that passed (compacted)
+     * @param pruning_threshold Threshold value for comparison
+     * @param pruning_distances Input array of distances to compare
+     */
+    static void InitPositionsArray(
+        size_t n_vectors,
+        size_t& n_vectors_not_pruned,
+        uint32_t* pruning_positions,
+        data_t pruning_threshold,
+        const data_t* pruning_distances
+    ) {
+        n_vectors_not_pruned = 0;
+        size_t vector_idx = 0;
+
+        constexpr size_t k_simd_width = 16;
+        const size_t n_vectors_simd = (n_vectors / k_simd_width) * k_simd_width;
+
+        __m512 threshold_vec = _mm512_set1_ps(pruning_threshold);
+
+        // Process 16 elements at a time
+        for (; vector_idx < n_vectors_simd; vector_idx += k_simd_width) {
+            // Load 16 distances
+            __m512 distances = _mm512_loadu_ps(pruning_distances + vector_idx);
+
+            // Compare: dist < threshold, produces a mask
+            __mmask16 cmp_mask = _mm512_cmp_ps_mask(distances, threshold_vec, _CMP_LT_OQ);
+
+            // Branch hint: likely that no elements passed (98% of the time)
+            if (SKM_UNLIKELY(cmp_mask)) {
+                // At least one element passed - use vpcompressd to store compacted indices
+                // Create vector of indices [vector_idx, vector_idx+1, ..., vector_idx+15]
+                __m512i indices = _mm512_add_epi32(
+                    _mm512_set1_epi32(vector_idx),
+                    _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+                );
+
+                // Compress and store indices where mask is true
+                _mm512_mask_compressstoreu_epi32(
+                    pruning_positions + n_vectors_not_pruned,
+                    cmp_mask,
+                    indices
+                );
+
+                // Update count by popcount of mask
+                n_vectors_not_pruned += _mm_popcnt_u32(cmp_mask);
+            }
+            // else: all comparisons failed, skip these 16 elements
+        }
+
+        // Handle remaining elements (< 16)
+        for (; vector_idx < n_vectors; ++vector_idx) {
+            pruning_positions[n_vectors_not_pruned] = vector_idx;
+            n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;
+        }
+    }
 };
 
 } // namespace skmeans

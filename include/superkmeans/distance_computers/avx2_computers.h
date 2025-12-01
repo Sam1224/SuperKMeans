@@ -109,6 +109,7 @@ class SIMDComputer<l2, f32> {
         // Convert the final sum to a scalar double-precision value and return
         double d2 = _mm_cvtsd_f64(sum128);
 
+#pragma clang loop vectorize(enable)
         for (; i < num_dimensions; ++i) {
             float d = vector1[i] - vector2[i];
             d2 += d * d;
@@ -232,6 +233,62 @@ class SIMDUtilsComputer<f32> {
         auto out_bits = reinterpret_cast<uint32_t*>(out);
         for (; j < d; ++j) {
             out_bits[j] = data_bits[j] ^ masks[j];
+        }
+    }
+
+    /**
+     * @brief Initializes positions array with indices of non-pruned vectors using AVX2.
+     *
+     * Optimized for cases where only ~2% of vectors pass the threshold test.
+     * Processes 8 floats at a time and uses branch prediction hints.
+     *
+     * @param n_vectors Number of vectors to process
+     * @param n_vectors_not_pruned Output: count of vectors passing threshold (updated)
+     * @param pruning_positions Output array of indices that passed (compacted)
+     * @param pruning_threshold Threshold value for comparison
+     * @param pruning_distances Input array of distances to compare
+     */
+    static void InitPositionsArray(
+        size_t n_vectors,
+        size_t& n_vectors_not_pruned,
+        uint32_t* pruning_positions,
+        data_t pruning_threshold,
+        const data_t* pruning_distances
+    ) {
+        n_vectors_not_pruned = 0;
+        size_t vector_idx = 0;
+
+        constexpr size_t k_simd_width = 8;
+        const size_t n_vectors_simd = (n_vectors / k_simd_width) * k_simd_width;
+
+        __m256 threshold_vec = _mm256_set1_ps(pruning_threshold);
+
+        // Process 8 elements at a time
+        for (; vector_idx < n_vectors_simd; vector_idx += k_simd_width) {
+            // Load 8 distances
+            __m256 distances = _mm256_loadu_ps(pruning_distances + vector_idx);
+
+            // Compare: dist < threshold
+            __m256 cmp_result = _mm256_cmp_ps(distances, threshold_vec, _CMP_LT_OQ);
+
+            // Convert to integer mask
+            int mask = _mm256_movemask_ps(cmp_result);
+
+            // Branch hint: likely that no elements passed (98% of the time)
+            if (SKM_UNLIKELY(mask)) {
+                // At least one element passed - handle with scalar code
+                for (size_t i = 0; i < k_simd_width; ++i) {
+                    pruning_positions[n_vectors_not_pruned] = vector_idx + i;
+                    n_vectors_not_pruned += (mask >> i) & 1;
+                }
+            }
+            // else: all comparisons failed, skip these 8 elements
+        }
+
+        // Handle remaining elements (< 8)
+        for (; vector_idx < n_vectors; ++vector_idx) {
+            pruning_positions[n_vectors_not_pruned] = vector_idx;
+            n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;
         }
     }
 };
