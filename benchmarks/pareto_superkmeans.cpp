@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
             // Time the training
             bench_utils::TicToc timer;
             timer.Tic();
-            std::vector<float> centroids = kmeans_state.Train(data.data(), n, queries.data(), n_queries);
+            std::vector<float> centroids = kmeans_state.Train(data.data(), n); // No early terminations
             timer.Toc();
             double construction_time_ms = timer.GetMilliseconds();
 
