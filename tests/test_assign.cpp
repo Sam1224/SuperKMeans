@@ -86,12 +86,10 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SIFT_NoSampling) {
     ASSERT_EQ(train_assignments.size(), n);
 
     // Now run Assign() with raw data and unrotated centroids
-    auto assign_assignments = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>::Assign(
+    auto assign_assignments = kmeans.Assign(
         data.data(),
         centroids.data(),
-        n,
-        n_clusters,
-        d
+        n, n_clusters
     );
     ASSERT_EQ(assign_assignments.size(), n);
 

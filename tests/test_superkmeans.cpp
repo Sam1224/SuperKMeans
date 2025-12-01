@@ -172,8 +172,8 @@ TEST_F(SuperKMeansTest, UnrotatedCentroids_WorkWithOriginalData) {
     auto centroids = kmeans.Train(data.data(), n);
 
     // Assign data to centroids
-    auto assignments = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>::Assign(
-        data.data(), centroids.data(), n, n_clusters, d
+    auto assignments = kmeans.Assign(
+        data.data(), centroids.data(), n, n_clusters
     );
 
     EXPECT_EQ(assignments.size(), n);
