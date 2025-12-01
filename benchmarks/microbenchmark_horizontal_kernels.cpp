@@ -273,7 +273,7 @@ int main() {
               << "x (d=" << best->dimensionality << ")" << std::endl;
     std::cout << "Worst speedup:   " << std::setprecision(2) << worst->speedup
               << "x (d=" << worst->dimensionality << ")" << std::endl;
-    
+
 
     return 0;
 }
