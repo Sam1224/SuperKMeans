@@ -103,6 +103,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
     ) {
         SKM_PROFILE_SCOPE("search");
         SKM_PROFILE_SCOPE("search/1st_blas");
+        std::cout << "Threads: " << g_n_threads << std::endl;
         std::fill_n(out_distances, n_x, std::numeric_limits<distance_t>::max());
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
             auto batch_n_x = X_BATCH_SIZE;
