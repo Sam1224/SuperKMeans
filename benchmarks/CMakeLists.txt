@@ -81,7 +81,11 @@ FetchContent_MakeAvailable(faiss)
 # Common benchmark dependencies
 set(BENCH_COMMON_LIBS
     ${BLAS_LINK_LIBRARIES}
-    faiss
+)
+
+set(
+        FAISS_COMMON_LIBS
+        faiss
 )
 
 # Link architecture-specific FAISS libraries (mutually exclusive - only the best available)
@@ -92,14 +96,14 @@ if(HAS_AVX512)
         message(STATUS "Linking FAISS with AVX-512 optimizations")
     endif()
     if(TARGET faiss_avx512)
-        list(APPEND BENCH_COMMON_LIBS faiss_avx512)
+        list(APPEND FAISS_COMMON_LIBS faiss_avx512)
     else()
         message(WARNING "faiss_avx512 target not found, falling back to base faiss")
     endif()
 elseif(HAS_AVX2)
     message(STATUS "Linking FAISS with AVX2 optimizations")
     if(TARGET faiss_avx2)
-        list(APPEND BENCH_COMMON_LIBS faiss_avx2)
+        list(APPEND FAISS_COMMON_LIBS faiss_avx2)
     else()
         message(WARNING "faiss_avx2 target not found, falling back to base faiss")
     endif()
@@ -126,14 +130,14 @@ target_link_libraries(end_to_end_superkmeans.out PRIVATE ${BENCH_COMMON_LIBS})
 
 # FAISS benchmark on real datasets with recall computation
 add_executable(end_to_end_faiss.out end_to_end_faiss.cpp)
-target_link_libraries(end_to_end_faiss.out PRIVATE faiss ${BENCH_COMMON_LIBS})
+target_link_libraries(end_to_end_faiss.out PRIVATE FAISS_COMMON_LIBS ${BENCH_COMMON_LIBS})
 
 # Early termination benchmarks
 add_executable(early_termination_superkmeans.out early_termination_superkmeans.cpp)
 target_link_libraries(early_termination_superkmeans.out PRIVATE ${BENCH_COMMON_LIBS})
 
 add_executable(early_termination_faiss.out early_termination_faiss.cpp)
-target_link_libraries(early_termination_faiss.out PRIVATE faiss ${BENCH_COMMON_LIBS})
+target_link_libraries(early_termination_faiss.out PRIVATE FAISS_COMMON_LIBS ${BENCH_COMMON_LIBS})
 
 # Sampling benchmark
 add_executable(sampling_superkmeans.out sampling_superkmeans.cpp)
