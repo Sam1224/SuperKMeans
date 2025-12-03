@@ -192,7 +192,11 @@ class ADSamplingPruner {
         Eigen::Map<const MatrixR> vectors_matrix(vectors, n, num_dimensions);
         Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
 #ifdef HAS_FFTW
+#ifdef __AVX2__
+        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
+#else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
+#endif
             FlipSign(vectors, out_buffer, n);
             int n0 = static_cast<int>(num_dimensions); // length of each 1D transform
             int howmany = static_cast<int>(n); // number of transforms (one per row)
@@ -202,27 +206,6 @@ class ADSamplingPruner {
                 flag = FFTW_ESTIMATE;
             }
             fftwf_plan plan;
-#ifdef __AVX2__
-            std::vector<float> temp_buffer(n * num_dimensions);
-            std::memcpy(temp_buffer.data(), out_buffer, n * num_dimensions * sizeof(float));
-            // fftwf_plan_with_nthreads(1);
-            fftwf_plan_with_nthreads(g_n_threads);
-            plan = fftwf_plan_many_r2r(
-                1,
-                &n0,
-                howmany,
-                temp_buffer.data(), /*in*/
-                NULL,
-                1,
-                n0,         /*inembed, istride, idist*/
-                out.data(), /*out*/
-                NULL,
-                1,
-                n0, /*onembed, ostride, odist*/
-                kind,
-                flag
-            );
-#else
             fftwf_plan_with_nthreads(g_n_threads);
             plan = fftwf_plan_many_r2r(
                 1,
@@ -239,7 +222,6 @@ class ADSamplingPruner {
                 kind,
                 flag
             );
-#endif
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
             const float s0 = std::sqrt(1.0f / (4.0f * num_dimensions));
@@ -265,7 +247,11 @@ class ADSamplingPruner {
         Eigen::Map<const MatrixR> vectors_matrix(rotated_vectors, n, num_dimensions);
         Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
 #ifdef HAS_FFTW
+#ifdef __AVX2__
+        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
+#else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
+#endif
             // Copy input to output buffer for in-place transform
             std::memcpy(out_buffer, rotated_vectors, n * num_dimensions * sizeof(float));
 
@@ -286,23 +272,6 @@ class ADSamplingPruner {
                 flag = FFTW_ESTIMATE;
             }
             fftwf_plan plan;
-#ifdef __AVX2__
-            std::vector<float> temp_buffer(n * num_dimensions);
-            std::memcpy(temp_buffer.data(), out_buffer, n * num_dimensions * sizeof(float));
-            // fftwf_plan_with_nthreads(1);
-            fftwf_plan_with_nthreads(g_n_threads);
-            plan = fftwf_plan_many_r2r(
-                1,
-                &n0,
-                howmany,
-                temp_buffer.data(),
-                NULL, 1, n0,
-                out.data(),
-                NULL, 1, n0,
-                kind,
-                flag
-            );
-#else
             fftwf_plan_with_nthreads(g_n_threads);
             plan = fftwf_plan_many_r2r(
                 1,
@@ -315,7 +284,6 @@ class ADSamplingPruner {
                 kind,
                 flag
             );
-#endif
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
 
