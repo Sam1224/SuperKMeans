@@ -11,6 +11,8 @@ using namespace skmeans;
 int main(int argc, char** argv) {
     bool test_fmnist = true;
 
+    skmeans::g_n_threads = 14;
+
     // Check if we should test with fmnist dataset
     if (argc > 1 && std::string(argv[1]) == "fmnist") {
         test_fmnist = true;

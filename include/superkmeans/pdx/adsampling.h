@@ -49,6 +49,7 @@ class ADSamplingPruner {
         std::mt19937 gen(seed);
         bool matrix_created = false;
 #ifdef HAS_FFTW
+        fftwf_init_threads();
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
             matrix.resize(1, num_dimensions);
             std::uniform_int_distribution<int> dist(0, 1);
@@ -87,6 +88,7 @@ class ADSamplingPruner {
         : num_dimensions(num_dims), epsilon0(eps0) {
         InitializeRatios();
 #ifdef HAS_FFTW
+        fftwf_init_threads();
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
             matrix =
                 Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
@@ -192,8 +194,6 @@ class ADSamplingPruner {
 #ifdef HAS_FFTW
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
             FlipSign(vectors, out_buffer, n);
-            fftwf_init_threads();
-            fftwf_plan_with_nthreads(g_n_threads);
             int n0 = static_cast<int>(num_dimensions); // length of each 1D transform
             int howmany = static_cast<int>(n); // number of transforms (one per row)
             fftw_r2r_kind kind[1] = {FFTW_REDFT10};
@@ -206,6 +206,7 @@ class ADSamplingPruner {
             std::vector<float> temp_buffer(n * num_dimensions);
             std::memcpy(temp_buffer.data(), out_buffer, n * num_dimensions * sizeof(float));
 
+            fftwf_plan_with_nthreads(g_n_threads);
             fftwf_plan plan = fftwf_plan_many_r2r(
                 1,
                 &n0,
@@ -223,6 +224,7 @@ class ADSamplingPruner {
             );
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
+            // fftwf_cleanup_threads();
             const float s0 = std::sqrt(1.0f / (4.0f * num_dimensions));
             const float s = std::sqrt(1.0f / (2.0f * num_dimensions));
             out.col(0) *= s0;
