@@ -5,19 +5,19 @@
 #define BENCHMARK_TIME = true
 #endif
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <omp.h>
 #include <random>
 #include <vector>
 
+#include "bench_utils.h"
 #include "superkmeans/common.h"
 #include "superkmeans/nanobench.h"
-#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/adsampling.h"
+#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/utils.h"
 #include "superkmeans/superkmeans.h"
-#include "bench_utils.h"
 
 int main(int argc, char* argv[]) {
     // Experiment configuration
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 
     skmeans::SuperKMeansConfig config;
     config.iters = n_iters;
-    config.verbose = true;  // ENABLED VERBOSE MODE
+    config.verbose = true; // ENABLED VERBOSE MODE
     config.n_threads = THREADS;
     config.objective_k = 10;
     config.ann_explore_fraction = 0.01f;
@@ -94,24 +94,26 @@ int main(int argc, char* argv[]) {
     config.sampling_fraction = sampling_fraction;
     config.use_blas_only = false;
 
-
     // Time the training
-    auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-       n_clusters, d, config
-    );
-    std::vector<float> centroids = kmeans_state.Train(data.data(), n //,
-        //queries.data(), n_queries
+    auto kmeans_state =
+        skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+            n_clusters, d, config
         );
+    std::vector<float> centroids = kmeans_state.Train(
+        data.data(), n //,
+                       // queries.data(), n_queries
+    );
     bench_utils::TicToc timer;
     timer.Tic();
     for (int i = 0; i < 1; i++) {
-        auto _tmp_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-           n_clusters, d, config
-        );
+        auto _tmp_state =
+            skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                n_clusters, d, config
+            );
         std::vector<float> _tmp_centroids = _tmp_state.Train(
             data.data(), n //,
             // queries.data(), n_queries
-            );
+        );
     }
     timer.Toc();
     double construction_time_ms = timer.GetMilliseconds();
@@ -121,7 +123,8 @@ int main(int argc, char* argv[]) {
     double final_objective = kmeans_state.iteration_stats.back().objective;
 
     std::cout << "\nTraining completed in " << construction_time_ms << " ms" << std::endl;
-    std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters << ")" << std::endl;
+    std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters << ")"
+              << std::endl;
     std::cout << "Final objective: " << final_objective << std::endl;
 
     // return 0;
@@ -141,23 +144,20 @@ int main(int argc, char* argv[]) {
 
         // Load ground truth
         auto gt_map = bench_utils::parse_ground_truth_json(gt_filename);
-        std::cout << "Using " << n_queries << " queries (loaded " << gt_map.size() << " from ground truth)" << std::endl;
+        std::cout << "Using " << n_queries << " queries (loaded " << gt_map.size()
+                  << " from ground truth)" << std::endl;
 
         // Assign each data point to its nearest centroid using SuperKMeans::Assign()
-        auto assignments = kmeans_state.Assign(
-            data.data(), centroids.data(), n, n_clusters
-        );
+        auto assignments = kmeans_state.Assign(data.data(), centroids.data(), n, n_clusters);
 
         // Compute recall for both KNN values
         auto results_knn_10 = bench_utils::compute_recall(
-            gt_map, assignments, queries.data(), centroids.data(),
-            n_queries, n_clusters, d, 10
+            gt_map, assignments, queries.data(), centroids.data(), n_queries, n_clusters, d, 10
         );
         bench_utils::print_recall_results(results_knn_10, 10);
 
         auto results_knn_100 = bench_utils::compute_recall(
-            gt_map, assignments, queries.data(), centroids.data(),
-            n_queries, n_clusters, d, 100
+            gt_map, assignments, queries.data(), centroids.data(), n_queries, n_clusters, d, 100
         );
         bench_utils::print_recall_results(results_knn_100, 100);
 

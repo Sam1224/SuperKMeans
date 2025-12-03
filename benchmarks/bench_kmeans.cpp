@@ -1,5 +1,4 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
-#define EIGEN_USE_THREADS
 
 #ifndef BENCHMARK_TIME
 #define BENCHMARK_TIME = true
@@ -16,13 +15,17 @@
 
 #include "superkmeans/common.h"
 #include "superkmeans/nanobench.h"
-#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/adsampling.h"
+#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/utils.h"
 #include "superkmeans/superkmeans.h"
 
-std::vector<float>
-make_blobs(size_t n_samples, size_t n_features, size_t n_centers, unsigned int random_state = 42) {
+std::vector<float> make_blobs(
+    size_t n_samples,
+    size_t n_features,
+    size_t n_centers,
+    unsigned int random_state = 42
+) {
     std::mt19937 gen(random_state);
 
     // Random cluster centers
@@ -77,8 +80,7 @@ int main(int argc, char* argv[]) {
 
     for (const auto& cfg : configs) {
         std::cout << "--- Benchmark: " << cfg.name << " ---" << std::endl;
-        std::cout << "n=" << cfg.n << ", d=" << cfg.d
-                  << ", n_clusters=" << cfg.n_clusters
+        std::cout << "n=" << cfg.n << ", d=" << cfg.d << ", n_clusters=" << cfg.n_clusters
                   << ", n_iters=" << cfg.n_iters << std::endl;
 
         // Generate synthetic data
@@ -92,16 +94,17 @@ int main(int argc, char* argv[]) {
         config.verbose = false;
         config.n_threads = THREADS;
 
-        ankerl::nanobench::Bench()
-            .epochs(1)
-            .epochIterations(1)
-            .run(cfg.name + "_SuperKMeans", [&]() {
-                auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-                    cfg.n_clusters, cfg.d, config
-                );
+        ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(
+            cfg.name + "_SuperKMeans",
+            [&]() {
+                auto kmeans =
+                    skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                        cfg.n_clusters, cfg.d, config
+                    );
                 auto centroids = kmeans.Train(data.data(), cfg.n);
                 ankerl::nanobench::doNotOptimizeAway(centroids);
-            });
+            }
+        );
 
         // Benchmark FAISS
         std::cout << "FAISS:" << std::endl;
@@ -112,16 +115,13 @@ int main(int argc, char* argv[]) {
         cp.nredo = 1;
         faiss::Clustering clus(cfg.d, cfg.n_clusters, cp);
 
-        ankerl::nanobench::Bench()
-            .epochs(1)
-            .epochIterations(1)
-            .run(cfg.name + "_FAISS", [&]() {
-                // Need to reset clustering for each run
-                faiss::Clustering clus_run(cfg.d, cfg.n_clusters, cp);
-                faiss::IndexFlatL2 index_run(cfg.d);
-                clus_run.train(cfg.n, data.data(), index_run);
-                ankerl::nanobench::doNotOptimizeAway(clus_run.centroids);
-            });
+        ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(cfg.name + "_FAISS", [&]() {
+            // Need to reset clustering for each run
+            faiss::Clustering clus_run(cfg.d, cfg.n_clusters, cp);
+            faiss::IndexFlatL2 index_run(cfg.d);
+            clus_run.train(cfg.n, data.data(), index_run);
+            ankerl::nanobench::doNotOptimizeAway(clus_run.centroids);
+        });
 
         std::cout << std::endl;
     }
@@ -141,7 +141,8 @@ int main(int argc, char* argv[]) {
         //     .epochs(3)
         //     .epochIterations(5)
         //     .run("Assign_100k_256d_1024c", [&]() {
-        //         auto assignments = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>::Assign(
+        //         auto assignments = skmeans::SuperKMeans<skmeans::Quantization::f32,
+        //         skmeans::DistanceFunction::l2>::Assign(
         //             data.data(), centroids.data(), n, n_clusters
         //         );
         //         ankerl::nanobench::doNotOptimizeAway(assignments);
@@ -169,18 +170,17 @@ int main(int argc, char* argv[]) {
             config.verbose = false;
             config.n_threads = THREADS;
 
-            std::string bench_name = "Sampling_" + std::to_string(int(sampling_fraction * 100)) + "pct";
+            std::string bench_name =
+                "Sampling_" + std::to_string(int(sampling_fraction * 100)) + "pct";
 
-            ankerl::nanobench::Bench()
-                .epochs(1)
-                .epochIterations(1)
-                .run(bench_name, [&]() {
-                    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+            ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(bench_name, [&]() {
+                auto kmeans =
+                    skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
                         n_clusters, d, config
                     );
-                    auto centroids = kmeans.Train(data.data(), n);
-                    ankerl::nanobench::doNotOptimizeAway(centroids);
-                });
+                auto centroids = kmeans.Train(data.data(), n);
+                ankerl::nanobench::doNotOptimizeAway(centroids);
+            });
         }
     }
 

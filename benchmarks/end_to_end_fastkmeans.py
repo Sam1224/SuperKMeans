@@ -1,4 +1,5 @@
 import os
+
 threads = os.cpu_count()
 os.environ["OMP_NUM_THREADS"] = str(threads)
 os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
@@ -6,7 +7,6 @@ os.environ["MKL_NUM_THREADS"] = str(threads)
 os.environ["BLIS_NUM_THREADS"] = str(threads)
 os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
-
 
 import numpy as np
 import math
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         tol=0.0,  # We don't want early stopping
         device='cpu',
         seed=42,
-        max_points_per_centroid=99999, # We don't want early stopping
+        max_points_per_centroid=99999,  # We don't want early stopping
         verbose=False,
         use_triton=False,
     )

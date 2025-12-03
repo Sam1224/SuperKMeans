@@ -229,12 +229,7 @@ class SIMDUtilsComputer<Quantization::f32> {
      * @param masks Bitmask array (0x80000000 to flip, 0 to keep)
      * @param d Number of dimensions
      */
-    static void FlipSign(
-        const data_t* data,
-        data_t* out,
-        const uint32_t* masks,
-        size_t d
-    ) {
+    static void FlipSign(const data_t* data, data_t* out, const uint32_t* masks, size_t d) {
         size_t j = 0;
         // NEON: process 4 floats at a time
         for (; j + 4 <= d; j += 4) {

@@ -263,7 +263,6 @@ class SIMDComputer<skmeans::DistanceFunction::l2, Quantization::f32> {
     };
 };
 
-
 template <Quantization q>
 class SIMDUtilsComputer {};
 
@@ -279,12 +278,7 @@ class SIMDUtilsComputer<Quantization::f32> {
      * @param masks Bitmask array (0x80000000 to flip, 0 to keep)
      * @param d Number of dimensions
      */
-    static void FlipSign(
-        const data_t* data,
-        data_t* out,
-        const uint32_t* masks,
-        size_t d
-    ) {
+    static void FlipSign(const data_t* data, data_t* out, const uint32_t* masks, size_t d) {
         size_t j = 0;
         // AVX-512: process 16 floats at a time
         for (; j + 16 <= d; j += 16) {
@@ -353,9 +347,7 @@ class SIMDUtilsComputer<Quantization::f32> {
 
                 // Compress and store indices where mask is true
                 _mm512_mask_compressstoreu_epi32(
-                    pruning_positions + n_vectors_not_pruned,
-                    cmp_mask,
-                    indices
+                    pruning_positions + n_vectors_not_pruned, cmp_mask, indices
                 );
 
                 n_vectors_not_pruned += _mm_popcnt_u32(cmp_mask);

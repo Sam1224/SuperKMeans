@@ -1,4 +1,5 @@
 import os
+
 threads = os.cpu_count()
 os.environ["OMP_NUM_THREADS"] = str(threads)
 os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
@@ -6,7 +7,6 @@ os.environ["MKL_NUM_THREADS"] = str(threads)
 os.environ["BLIS_NUM_THREADS"] = str(threads)
 os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
-
 
 from sklearn.cluster import KMeans
 import numpy as np
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         )
     num_vectors, num_dimensions = DATASET_PARAMS[dataset]
     num_centroids = max(1, int(math.sqrt(num_vectors) * 4))
-    n_iter = 5 # MAX_ITERS
+    n_iter = 5  # MAX_ITERS
     threads = threads
 
     print(f"=== Running algorithm: {algorithm} ===")
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         init='random',
         n_init=1,
         max_iter=n_iter,
-        tol=0.0, # We dont want early stopping
+        tol=0.0,  # We dont want early stopping
         verbose=0,
         random_state=42,
         copy_x=True

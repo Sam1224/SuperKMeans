@@ -21,7 +21,8 @@ class SIMDComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32> {
   public:
     using distance_t = skmeans_distance_t<skmeans::Quantization::f32>;
     using data_t = skmeans_value_t<skmeans::Quantization::f32>;
-    using scalar_computer = ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>;
+    using scalar_computer =
+        ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>;
 
     // Defer to the scalar kernel
     template <bool SKIP_PRUNED>
@@ -136,9 +137,7 @@ class SIMDComputer<skmeans::DistanceFunction::dp, skmeans::Quantization::f32> {
         size_t end_dimension,
         distance_t* distances_p,
         const uint32_t* pruning_positions = nullptr
-    ) {
-
-    }
+    ) {}
 
     // Defer to the scalar kernel
     static void Vertical(
@@ -147,9 +146,7 @@ class SIMDComputer<skmeans::DistanceFunction::dp, skmeans::Quantization::f32> {
         size_t start_dimension,
         size_t end_dimension,
         distance_t* distances_p
-    ) {
-
-    }
+    ) {}
 
     static distance_t Horizontal(
         const data_t* SKM_RESTRICT vector1,
@@ -213,12 +210,7 @@ class SIMDUtilsComputer<skmeans::Quantization::f32> {
      * @param masks Bitmask array (0x80000000 to flip, 0 to keep)
      * @param d Number of dimensions
      */
-    static void FlipSign(
-        const data_t* data,
-        data_t* out,
-        const uint32_t* masks,
-        size_t d
-    ) {
+    static void FlipSign(const data_t* data, data_t* out, const uint32_t* masks, size_t d) {
         size_t j = 0;
         // AVX2: process 8 floats at a time
         for (; j + 8 <= d; j += 8) {

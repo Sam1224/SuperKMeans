@@ -1,10 +1,10 @@
-#include <iostream>
-#include <vector>
-#include <random>
+#include "bench_utils.h"
+#include "superkmeans/pdx/adsampling.h"
 #include <cmath>
 #include <fstream>
-#include "superkmeans/pdx/adsampling.h"
-#include "bench_utils.h"
+#include <iostream>
+#include <random>
+#include <vector>
 
 using namespace skmeans;
 
@@ -102,8 +102,8 @@ int main(int argc, char** argv) {
             if (error > 1e-3f) {
                 n_errors++;
                 if (n_errors <= 10) {
-                    std::cout << "Large error at index " << i
-                              << " (vec " << (i / num_dims) << ", dim " << (i % num_dims) << "): "
+                    std::cout << "Large error at index " << i << " (vec " << (i / num_dims)
+                              << ", dim " << (i % num_dims) << "): "
                               << "original=" << data[i] << ", "
                               << "unrotated=" << unrotated[i] << ", "
                               << "error=" << error << std::endl;
@@ -118,14 +118,16 @@ int main(int argc, char** argv) {
         std::cout << "Errors > 1e-3: " << n_errors << " / " << data.size() << std::endl;
 
         if (max_error < 1e-3f) {
-            std::cout << "✓ DCT rotation is CORRECT for FMNIST (dim=" << num_dims << ")" << std::endl;
+            std::cout << "✓ DCT rotation is CORRECT for FMNIST (dim=" << num_dims << ")"
+                      << std::endl;
         } else {
-            std::cout << "✗ DCT rotation is INCORRECT for FMNIST (dim=" << num_dims << ")" << std::endl;
+            std::cout << "✗ DCT rotation is INCORRECT for FMNIST (dim=" << num_dims << ")"
+                      << std::endl;
         }
     }
 
     // Original synthetic tests
-    std::vector<size_t> dims_to_test = {768, 1024, 1536};  // Non-power-of-2
+    std::vector<size_t> dims_to_test = {768, 1024, 1536}; // Non-power-of-2
 
     if (argc > 1) {
         dims_to_test = {static_cast<size_t>(std::atoi(argv[1]))};
@@ -217,8 +219,8 @@ int main(int argc, char** argv) {
             if (error > 1e-3f) {
                 n_errors++;
                 if (n_errors <= 10) {
-                    std::cout << "Large error at index " << i
-                              << " (vec " << (i / num_dims) << ", dim " << (i % num_dims) << "): "
+                    std::cout << "Large error at index " << i << " (vec " << (i / num_dims)
+                              << ", dim " << (i % num_dims) << "): "
                               << "original=" << original[i] << ", "
                               << "unrotated=" << unrotated[i] << ", "
                               << "error=" << error << std::endl;

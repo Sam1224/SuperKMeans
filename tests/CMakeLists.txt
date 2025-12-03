@@ -18,6 +18,7 @@ enable_testing()
 set(TEST_COMMON_LIBS
     gtest
     gtest_main
+    ${MKL_COMMON_LIBS}
     ${BLAS_LINK_LIBRARIES}
 )
 

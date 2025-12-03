@@ -1,15 +1,20 @@
 #include <gtest/gtest.h>
-#include <vector>
+#include <omp.h>
 #include <random>
 #include <unordered_set>
-#include <omp.h>
+#include <vector>
 
 #include "superkmeans/common.h"
 #include "superkmeans/superkmeans.h"
 
 namespace {
 
-std::vector<float> make_blobs(size_t n_samples, size_t n_features, size_t n_centers, unsigned int random_state = 42) {
+std::vector<float> make_blobs(
+    size_t n_samples,
+    size_t n_features,
+    size_t n_centers,
+    unsigned int random_state = 42
+) {
     std::mt19937 gen(random_state);
     std::normal_distribution<float> center_dist(0.0f, 1.0f);
     std::vector<std::vector<float>> centers(n_centers, std::vector<float>(n_features));
@@ -35,10 +40,8 @@ std::vector<float> make_blobs(size_t n_samples, size_t n_features, size_t n_cent
 } // anonymous namespace
 
 class SuperKMeansTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        omp_set_num_threads(4);
-    }
+  protected:
+    void SetUp() override { omp_set_num_threads(4); }
 };
 
 TEST_F(SuperKMeansTest, BasicTraining_SmallDataset) {
@@ -52,7 +55,9 @@ TEST_F(SuperKMeansTest, BasicTraining_SmallDataset) {
     config.iters = 10;
     config.verbose = false;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
 
     EXPECT_FALSE(kmeans.IsTrained());
 
@@ -74,7 +79,9 @@ TEST_F(SuperKMeansTest, CentroidsAreValid) {
     config.iters = 10;
     config.verbose = false;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     // Check that centroids contain valid values (no NaN or Inf)
@@ -96,7 +103,9 @@ TEST_F(SuperKMeansTest, AllClustersUsed) {
     config.verbose = false;
     config.perform_assignments = true;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     // Check that all clusters have at least one assignment
@@ -104,8 +113,8 @@ TEST_F(SuperKMeansTest, AllClustersUsed) {
     std::unordered_set<uint32_t> used_clusters(assignments.begin(), assignments.end());
 
     EXPECT_EQ(used_clusters.size(), n_clusters)
-        << "Not all clusters were used. Expected " << n_clusters
-        << " but only " << used_clusters.size() << " were assigned.";
+        << "Not all clusters were used. Expected " << n_clusters << " but only "
+        << used_clusters.size() << " were assigned.";
 }
 
 TEST_F(SuperKMeansTest, SamplingFraction_ReducesComputations) {
@@ -121,7 +130,9 @@ TEST_F(SuperKMeansTest, SamplingFraction_ReducesComputations) {
     config.sampling_fraction = 0.5f;
     config.verbose = false;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     EXPECT_EQ(centroids.size(), n_clusters * d);
@@ -143,7 +154,9 @@ TEST_F(SuperKMeansTest, PerformAssignments_PopulatesAssignments) {
     config.verbose = false;
     config.perform_assignments = true;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     const auto& assignments = kmeans._assignments;
@@ -168,13 +181,13 @@ TEST_F(SuperKMeansTest, UnrotatedCentroids_WorkWithOriginalData) {
     config.verbose = false;
     config.unrotate_centroids = true;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     // Assign data to centroids
-    auto assignments = kmeans.Assign(
-        data.data(), centroids.data(), n, n_clusters
-    );
+    auto assignments = kmeans.Assign(data.data(), centroids.data(), n, n_clusters);
 
     EXPECT_EQ(assignments.size(), n);
 
@@ -196,7 +209,9 @@ TEST_F(SuperKMeansTest, HighDimensionalData_UsesBLASOnly) {
     config.iters = 10;
     config.verbose = false;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     EXPECT_EQ(centroids.size(), n_clusters * d);
@@ -215,7 +230,9 @@ TEST_F(SuperKMeansTest, LowDimensionalData_UsesPDX) {
     config.iters = 15;
     config.verbose = false;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
     auto centroids = kmeans.Train(data.data(), n);
 
     EXPECT_EQ(centroids.size(), n_clusters * d);
@@ -239,10 +256,14 @@ TEST_F(SuperKMeansTest, DifferentSeeds_ProduceDifferentResults) {
     config2.seed = 123;
     config2.verbose = false;
 
-    auto kmeans1 = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config1);
+    auto kmeans1 = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config1
+    );
     auto centroids1 = kmeans1.Train(data.data(), n);
 
-    auto kmeans2 = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config2);
+    auto kmeans2 = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config2
+    );
     auto centroids2 = kmeans2.Train(data.data(), n);
 
     // Results should be different (at least some centroids should differ)
@@ -254,8 +275,7 @@ TEST_F(SuperKMeansTest, DifferentSeeds_ProduceDifferentResults) {
         }
     }
 
-    EXPECT_TRUE(found_difference)
-        << "Different seeds should produce different clustering results";
+    EXPECT_TRUE(found_difference) << "Different seeds should produce different clustering results";
 }
 
 TEST_F(SuperKMeansTest, InvalidInputs_ThrowExceptions) {
@@ -266,19 +286,27 @@ TEST_F(SuperKMeansTest, InvalidInputs_ThrowExceptions) {
     std::vector<float> data = make_blobs(n, d, n_clusters);
 
     // Test with more clusters than data points
-    EXPECT_THROW((
-        [&]() {
-            auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n + 10, d);
+    EXPECT_THROW(
+        ([&]() {
+            auto kmeans =
+                skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                    n + 10, d
+                );
             kmeans.Train(data.data(), n);
-        }()
-    ), std::runtime_error);
+        }()),
+        std::runtime_error
+    );
 
     // Test training twice
-    EXPECT_THROW((
-        [&]() {
-            auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d);
+    EXPECT_THROW(
+        ([&]() {
+            auto kmeans =
+                skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                    n_clusters, d
+                );
             kmeans.Train(data.data(), n);
-            kmeans.Train(data.data(), n);  // Should throw
-        }()
-    ), std::runtime_error);
+            kmeans.Train(data.data(), n); // Should throw
+        }()),
+        std::runtime_error
+    );
 }

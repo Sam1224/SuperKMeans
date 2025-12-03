@@ -1,14 +1,19 @@
-#include <gtest/gtest.h>
-#include <vector>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <random>
+#include <vector>
 
 #include "superkmeans/common.h"
 #include "superkmeans/pdx/adsampling.h"
 
 class UnrotateTest : public ::testing::Test {
-protected:
-    void GenerateRandomVectors(size_t n, size_t d, std::vector<float>& output, unsigned int seed = 42) {
+  protected:
+    void GenerateRandomVectors(
+        size_t n,
+        size_t d,
+        std::vector<float>& output,
+        unsigned int seed = 42
+    ) {
         output.resize(n * d);
         std::mt19937 rng(seed);
         std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
@@ -110,10 +115,10 @@ TEST_F(UnrotateTest, RotateUnrotateInverse_MultipleDimensions) {
         double avg_error = sum_error / (n * d);
 
         EXPECT_LT(max_error, 1e-4)
-            << "Max error too large for d=" << d
-            << " (using " << (d >= skmeans::D_THRESHOLD_FOR_DCT_ROTATION ? "DCT" : "orthonormal matrix") << " rotation)";
-        EXPECT_LT(avg_error, 1e-5)
-            << "Average error too large for d=" << d;
+            << "Max error too large for d=" << d << " (using "
+            << (d >= skmeans::D_THRESHOLD_FOR_DCT_ROTATION ? "DCT" : "orthonormal matrix")
+            << " rotation)";
+        EXPECT_LT(avg_error, 1e-5) << "Average error too large for d=" << d;
     }
 }
 

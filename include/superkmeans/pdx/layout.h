@@ -14,8 +14,8 @@ namespace skmeans {
  * @brief Holds the split of dimensions between vertical and horizontal storage.
  */
 struct PDXDimensionSplit {
-    size_t horizontal_d{0};  ///< Number of horizontal dimensions (stored row-major)
-    size_t vertical_d{0};    ///< Number of vertical dimensions (stored column-major)
+    size_t horizontal_d{0}; ///< Number of horizontal dimensions (stored row-major)
+    size_t vertical_d{0};   ///< Number of vertical dimensions (stored column-major)
 };
 
 /**
@@ -50,7 +50,13 @@ class PDXLayout {
      * @param d Number of dimensions
      * @param hor_data Optional pointer to auxiliary horizontal data for faster pruning
      */
-    PDXLayout(scalar_t* pdx_data, Pruner& pruner, size_t n_points, size_t d, scalar_t* hor_data = nullptr) {
+    PDXLayout(
+        scalar_t* pdx_data,
+        Pruner& pruner,
+        size_t n_points,
+        size_t d,
+        scalar_t* hor_data = nullptr
+    ) {
         index = std::make_unique<index_t>(); // PDXLayout is owner of the Index
         FromBufferToPDXIndex(pdx_data, n_points, d, hor_data);
         searcher = std::make_unique<searcher_t>(*index, pruner);
@@ -100,7 +106,7 @@ class PDXLayout {
             cluster.data = pdx_data_p;
             cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
             if (hor_data_p) {
-                cluster.aux_hor_data = hor_data_p;
+                cluster.aux_vertical_dimensions_in_horizontal_layout = hor_data_p;
                 hor_data_p += VECTOR_CHUNK_SIZE * vertical_d;
             }
             pdx_data_p += VECTOR_CHUNK_SIZE * d;
@@ -111,7 +117,7 @@ class PDXLayout {
             cluster.data = pdx_data_p;
             cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
             if (hor_data_p) {
-                cluster.aux_hor_data = hor_data_p;
+                cluster.aux_vertical_dimensions_in_horizontal_layout = hor_data_p;
             }
         }
     }
@@ -201,7 +207,8 @@ class PDXLayout {
             }
         }
         if (n_remaining) {
-            auto chunk_offset = (full_chunks * CHUNK_SIZE) * d; // Chunk offset is the same in both layouts
+            auto chunk_offset =
+                (full_chunks * CHUNK_SIZE) * d; // Chunk offset is the same in both layouts
             const scalar_t* SKM_RESTRICT chunk_p = in_vectors + chunk_offset;
             scalar_t* SKM_RESTRICT out_chunk_p = out_pdx_vectors + chunk_offset;
             if constexpr (FULLY_TRANSPOSED) {
@@ -232,11 +239,11 @@ class PDXLayout {
         }
     }
 
-    std::unique_ptr<searcher_t> searcher = nullptr;  ///< PDXearch instance for this layout
-    std::unique_ptr<index_t> index;                   ///< Index structure holding cluster metadata
+    std::unique_ptr<searcher_t> searcher = nullptr; ///< PDXearch instance for this layout
+    std::unique_ptr<index_t> index;                 ///< Index structure holding cluster metadata
 
   protected:
-    std::vector<uint32_t> centroid_ids;  ///< Vector of centroid IDs (0 to n_points-1)
+    std::vector<uint32_t> centroid_ids; ///< Vector of centroid IDs (0 to n_points-1)
 };
 
 } // namespace skmeans

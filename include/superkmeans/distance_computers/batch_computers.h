@@ -34,10 +34,10 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @brief Performs BLAS matrix multiplication: distances = x * y^T
      * Note that Eigen internally uses BLAS for matrix multiplication, so we can use it directly.
      * This is convenient as it will work even if a BLAS library is not available.
-     * 
+     *
      * Computes the dot product matrix between query vectors (x) and reference vectors (y).
      * Can optionally use only the first partial_d dimensions for partial distance computation.
-     * 
+     *
      * @param batch_x_p Pointer to query vectors batch (batch_n_x × d)
      * @param batch_y_p Pointer to reference vectors batch (batch_n_y × d)
      * @param batch_n_x Number of query vectors in batch
@@ -58,10 +58,10 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
         Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
         Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
-        
+
         if (partial_d > 0 && partial_d < d) {
             // Partial multiplication: use only first partial_d dimensions
-            distances_matrix.noalias() = 
+            distances_matrix.noalias() =
                 x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
         } else {
             // Full multiplication: use all dimensions
@@ -83,13 +83,11 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         Eigen::Map<const MatrixR> y_matrix(batch_y_p, partial_d, batch_n_y);
 
         if (partial_d > 0 && partial_d < d) {
-            // Partial multiplication: use only first partial_d dimensions
             distances_matrix.noalias() = x_matrix * y_matrix;
         }
     }
 
   public:
-
     /**
      * @brief Finds the nearest neighbor for each query vector using batched BLAS.
      *
@@ -106,7 +104,8 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param norms_y Pre-computed squared L2 norms of reference vectors
      * @param out_knn Output: index of nearest neighbor for each query
      * @param out_distances Output: distance to nearest neighbor for each query
-     * @param all_distances_buf Scratch buffer for batch distance computation (size: X_BATCH_SIZE × Y_BATCH_SIZE)
+     * @param all_distances_buf Scratch buffer for batch distance computation (size: X_BATCH_SIZE ×
+     * Y_BATCH_SIZE)
      */
     static void FindNearestNeighbor(
         const data_t* SKM_RESTRICT x,
@@ -135,7 +134,9 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 if (j + Y_BATCH_SIZE > n_y) {
                     batch_n_y = n_y - j;
                 }
-                BlasMatrixMultiplication(batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, all_distances_buf);
+                BlasMatrixMultiplication(
+                    batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, all_distances_buf
+                );
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
 #pragma omp parallel for num_threads(g_n_threads)
                 for (size_t r = 0; r < batch_n_x; ++r) {
@@ -213,7 +214,9 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                     batch_n_y = n_y - j;
                 }
 
-                BlasMatrixMultiplication(batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, all_distances_buf);
+                BlasMatrixMultiplication(
+                    batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, all_distances_buf
+                );
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
 
 #pragma omp parallel for num_threads(g_n_threads)
@@ -235,8 +238,11 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
 
                     // Add previous top-k (skip if distance is infinity, meaning not filled yet)
                     for (size_t ki = 0; ki < k; ++ki) {
-                        if (out_distances[i_idx * k + ki] < std::numeric_limits<distance_t>::max()) {
-                            candidates.push_back({out_distances[i_idx * k + ki], out_knn[i_idx * k + ki]});
+                        if (out_distances[i_idx * k + ki] <
+                            std::numeric_limits<distance_t>::max()) {
+                            candidates.push_back(
+                                {out_distances[i_idx * k + ki], out_knn[i_idx * k + ki]}
+                            );
                         }
                     }
 
@@ -248,9 +254,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                     // Partial sort to get new top-k
                     size_t actual_k = std::min(k, candidates.size());
                     std::partial_sort(
-                        candidates.begin(),
-                        candidates.begin() + actual_k,
-                        candidates.end()
+                        candidates.begin(), candidates.begin() + actual_k, candidates.end()
                     );
 
                     // Update output with new top-k
@@ -289,7 +293,8 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param all_distances_buf Scratch buffer for batch distance computation
      * @param pdx_centroids PDX layout containing centroids and searcher for pruned search
      * @param partial_d Number of dimensions used for initial BLAS computation
-     * @param out_not_pruned_counts Optional output: count of non-pruned vectors per query (for tuning)
+     * @param out_not_pruned_counts Optional output: count of non-pruned vectors per query (for
+     * tuning)
      */
     static void FindNearestNeighborWithPruning(
         const data_t* SKM_RESTRICT x,
@@ -314,11 +319,11 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 batch_n_x = n_x - i;
             }
             MatrixR materialize_x_left_cols;
-            {
-                SKM_PROFILE_SCOPE("search/leftCols");
-                // auto x_matrix_p = Eigen::Map<const MatrixR>(batch_x_p, batch_n_x, d);
-                // materialize_x_left_cols = x_matrix_p.leftCols(partial_d).eval();
-            }
+            // {
+            //     SKM_PROFILE_SCOPE("search/leftCols");
+            //     auto x_matrix_p = Eigen::Map<const MatrixR>(batch_x_p, batch_n_x, d);
+            //     materialize_x_left_cols = x_matrix_p.leftCols(partial_d).eval();
+            // }
             for (size_t j = 0; j < n_y; j += Y_BATCH_SIZE) {
                 auto batch_n_y = Y_BATCH_SIZE;
                 auto batch_y_p = y + (j * d);
@@ -327,10 +332,15 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
                 {
                     SKM_PROFILE_SCOPE("search/blas");
-                    // assert(partial_d <= pdx_centroids.searcher->pdx_data.num_vertical_dimensions);
-                    // auto batch_y_column_p = pdx_centroids.searcher->pdx_data.clusters[j / VECTOR_CHUNK_SIZE].data;
-                    // BlasMatrixMultiplicationColumnMajor(materialize_x_left_cols.data(), batch_y_column_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf);
-                    BlasMatrixMultiplication(batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf);
+                    BlasMatrixMultiplication(
+                        batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf
+                    );
+                    // assert(partial_d <=
+                    // pdx_centroids.searcher->pdx_data.num_vertical_dimensions); auto
+                    // batch_y_column_p = pdx_centroids.searcher->pdx_data.clusters[j /
+                    // VECTOR_CHUNK_SIZE].data;
+                    // BlasMatrixMultiplicationColumnMajor(materialize_x_left_cols.data(),
+                    // batch_y_column_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf);
                 }
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
                 {
@@ -355,10 +365,11 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                         // Note that this will take the KNN from the previous batch loop
                         const auto prev_assignment = out_knn[i_idx];
                         distance_t dist_to_prev_centroid;
-                        if (j == 0) { // After this we always have the right distance in out_distances
-                            dist_to_prev_centroid = DistanceComputer<DistanceFunction::l2, Quantization::f32>::Horizontal(
-                                y + (prev_assignment * d), data_p, d
-                            );
+                        if (j ==
+                            0) { // After this we always have the right distance in out_distances
+                            dist_to_prev_centroid =
+                                DistanceComputer<DistanceFunction::l2, Quantization::f32>::
+                                    Horizontal(y + (prev_assignment * d), data_p, d);
                         } else {
                             dist_to_prev_centroid = out_distances[i_idx];
                         }
@@ -377,10 +388,10 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                                     partial_d,
                                     j / VECTOR_CHUNK_SIZE, // start cluster_id
                                     (j + Y_BATCH_SIZE) /
-                                        VECTOR_CHUNK_SIZE, // end cluster_id; We use Y_BATCH_SIZE and
-                                                          // not batch_n_y because otherwise we
-                                                          // would not go up until incomplete
-                                                          // clusters
+                                        VECTOR_CHUNK_SIZE, // end cluster_id; We use Y_BATCH_SIZE
+                                                           // and not batch_n_y because otherwise we
+                                                           // would not go up until incomplete
+                                                           // clusters
                                     out_not_pruned_counts != nullptr ? &local_not_pruned : nullptr
                                 );
                         // Store not-pruned count for this X vector (accumulate across Y batches)

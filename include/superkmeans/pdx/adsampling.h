@@ -1,8 +1,8 @@
 #pragma once
 
-#include <omp.h>
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/pdx/utils.h"
+#include <omp.h>
 
 #include <Eigen/Eigen/Dense>
 #ifdef HAS_FFTW
@@ -33,8 +33,8 @@ class ADSamplingPruner {
     using MatrixR = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
   public:
-    uint32_t num_dimensions;      ///< Number of dimensions in the data
-    std::vector<float> ratios{};  ///< Precomputed pruning threshold ratios
+    uint32_t num_dimensions;     ///< Number of dimensions in the data
+    std::vector<float> ratios{}; ///< Precomputed pruning threshold ratios
 
     /**
      * @brief Constructs an ADSamplingPruner with a randomly generated rotation matrix.
@@ -62,7 +62,8 @@ class ADSamplingPruner {
             }
             flip_masks.resize(num_dimensions);
             for (size_t i = 0; i < num_dimensions; ++i) {
-                // Use matrix(i) which has the random +1/-1 values, not flip_masks[i] which is uninitialized
+                // Use matrix(i) which has the random +1/-1 values, not flip_masks[i] which is
+                // uninitialized
                 flip_masks[i] = (matrix(i) < 0.0f ? 0x80000000u : 0u);
             }
             matrix_created = true;
@@ -144,7 +145,7 @@ class ADSamplingPruner {
 
     /** @brief Sets the rotation matrix (copy). */
     void SetMatrix(const Eigen::MatrixXf& mat) { matrix = mat; }
-    
+
     /** @brief Sets the rotation matrix (move). */
     void SetMatrix(Eigen::MatrixXf&& mat) { matrix = std::move(mat); }
 
@@ -175,7 +176,9 @@ class ADSamplingPruner {
 #pragma omp parallel for num_threads(g_n_threads)
         for (size_t i = 0; i < n; ++i) {
             const size_t offset = i * num_dimensions;
-            UtilsComputer<q>::FlipSign(data + offset, out + offset, flip_masks.data(), num_dimensions);
+            UtilsComputer<q>::FlipSign(
+                data + offset, out + offset, flip_masks.data(), num_dimensions
+            );
         }
     }
 
@@ -207,7 +210,7 @@ class ADSamplingPruner {
 #endif
             FlipSign(vectors, out_buffer, n);
             int n0 = static_cast<int>(num_dimensions); // length of each 1D transform
-            int howmany = static_cast<int>(n); // number of transforms (one per row)
+            int howmany = static_cast<int>(n);         // number of transforms (one per row)
             fftw_r2r_kind kind[1] = {FFTW_REDFT10};
             auto flag = FFTW_MEASURE;
             if (IsPowerOf2(num_dimensions)) {
@@ -274,7 +277,7 @@ class ADSamplingPruner {
             fftwf_plan_with_nthreads(g_n_threads);
             int n0 = static_cast<int>(num_dimensions);
             int howmany = static_cast<int>(n);
-            fftw_r2r_kind kind[1] = {FFTW_REDFT01};  // DCT-III (inverse of DCT-II)
+            fftw_r2r_kind kind[1] = {FFTW_REDFT01}; // DCT-III (inverse of DCT-II)
             auto flag = FFTW_MEASURE;
             if (IsPowerOf2(num_dimensions)) {
                 flag = FFTW_ESTIMATE;
@@ -282,15 +285,7 @@ class ADSamplingPruner {
             fftwf_plan plan;
             fftwf_plan_with_nthreads(g_n_threads);
             plan = fftwf_plan_many_r2r(
-                1,
-                &n0,
-                howmany,
-                out.data(),
-                NULL, 1, n0,
-                out.data(),
-                NULL, 1, n0,
-                kind,
-                flag
+                1, &n0, howmany, out.data(), NULL, 1, n0, out.data(), NULL, 1, n0, kind, flag
             );
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
@@ -308,9 +303,9 @@ class ADSamplingPruner {
     }
 
   private:
-    float epsilon0 = 2.1;              ///< Pruning aggressiveness parameter
-    MatrixR matrix;                     ///< Rotation matrix (or sign vector for DCT)
-    std::vector<uint32_t> flip_masks;   ///< Sign flip masks for DCT-based rotation
+    float epsilon0 = 2.1;             ///< Pruning aggressiveness parameter
+    MatrixR matrix;                   ///< Rotation matrix (or sign vector for DCT)
+    std::vector<uint32_t> flip_masks; ///< Sign flip masks for DCT-based rotation
 
     /**
      * @brief Computes the pruning ratio for a given number of visited dimensions.
@@ -335,4 +330,3 @@ class ADSamplingPruner {
 };
 
 } // namespace skmeans
-

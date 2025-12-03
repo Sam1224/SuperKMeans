@@ -70,7 +70,7 @@ class TicToc {
     }
 
     double GetMilliseconds() const {
-        return accum_time / 1e6;  // Convert nanoseconds to milliseconds
+        return accum_time / 1e6; // Convert nanoseconds to milliseconds
     }
 };
 
@@ -90,12 +90,11 @@ const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS 
 };
 
 // Standard exploration fractions for recall computation
-const std::vector<float> EXPLORE_FRACTIONS = {
-    0.001f, 0.002f, 0.003f, 0.004f, 0.005f, 0.006f, 0.007f, 0.008f, 0.009f,
-    0.0100f, 0.0125f, 0.0150f, 0.0175f, 0.0200f, 0.0225f, 0.0250f, 0.0275f,
-    0.0300f, 0.0325f, 0.0350f, 0.0375f, 0.0400f, 0.0425f, 0.0450f, 0.0475f, 0.0500f,
-    0.1f
-};
+const std::vector<float> EXPLORE_FRACTIONS = {0.001f,  0.002f,  0.003f,  0.004f,  0.005f,  0.006f,
+                                              0.007f,  0.008f,  0.009f,  0.0100f, 0.0125f, 0.0150f,
+                                              0.0175f, 0.0200f, 0.0225f, 0.0250f, 0.0275f, 0.0300f,
+                                              0.0325f, 0.0350f, 0.0375f, 0.0400f, 0.0425f, 0.0450f,
+                                              0.0475f, 0.0500f, 0.1f};
 
 // KNN values to test
 const std::vector<int> KNN_VALUES = {10, 100};
@@ -111,10 +110,12 @@ const int SCIKIT_EARLY_TERM_MAX_ITERS = 300;
 const float SCIKIT_EARLY_TERM_TOL = 1e-8f;
 
 // Sampling fraction values for sampling experiment
-const std::vector<float> SAMPLING_FRACTION_VALUES = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 0.95f, 1.00f};
+const std::vector<float> SAMPLING_FRACTION_VALUES =
+    {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 0.95f, 1.00f};
 
 // Iteration values for pareto experiment (grid search)
-const std::vector<int> PARETO_ITERS_VALUES = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25};
+const std::vector<int> PARETO_ITERS_VALUES = {1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13,
+                                              14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25};
 
 /**
  * @brief Parse ground truth JSON file.
@@ -124,7 +125,9 @@ const std::vector<int> PARETO_ITERS_VALUES = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
  * @param filename Path to JSON file
  * @return Map of query index to vector IDs
  */
-inline std::unordered_map<int, std::vector<int>> parse_ground_truth_json(const std::string& filename) {
+inline std::unordered_map<int, std::vector<int>> parse_ground_truth_json(
+    const std::string& filename
+) {
     std::unordered_map<int, std::vector<int>> gt_map;
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -139,7 +142,8 @@ inline std::unordered_map<int, std::vector<int>> parse_ground_truth_json(const s
     while ((pos = line.find("\"", pos)) != std::string::npos) {
         size_t key_start = pos + 1;
         size_t key_end = line.find("\"", key_start);
-        if (key_end == std::string::npos) break;
+        if (key_end == std::string::npos)
+            break;
 
         std::string key_str = line.substr(key_start, key_end - key_start);
         int query_idx = std::stoi(key_str);
@@ -147,7 +151,8 @@ inline std::unordered_map<int, std::vector<int>> parse_ground_truth_json(const s
         // Find the array of vector IDs
         size_t arr_start = line.find("[", key_end);
         size_t arr_end = line.find("]", arr_start);
-        if (arr_start == std::string::npos || arr_end == std::string::npos) break;
+        if (arr_start == std::string::npos || arr_end == std::string::npos)
+            break;
 
         std::string arr_str = line.substr(arr_start + 1, arr_end - arr_start - 1);
         std::vector<int> vector_ids;
@@ -181,9 +186,10 @@ inline std::unordered_map<int, std::vector<int>> parse_ground_truth_json(const s
  * @param n_clusters Number of clusters
  * @param d Dimensionality
  * @param knn Number of ground truth neighbors to consider
- * @return Vector of tuples (centroids_to_explore, explore_fraction, recall_mean, recall_std, avg_vectors_to_visit)
+ * @return Vector of tuples (centroids_to_explore, explore_fraction, recall_mean, recall_std,
+ * avg_vectors_to_visit)
  */
-template<typename AssignmentType>
+template <typename AssignmentType>
 std::vector<std::tuple<int, float, float, float, float>> compute_recall(
     const std::unordered_map<int, std::vector<int>>& gt_map,
     const std::vector<AssignmentType>& assignments,
@@ -254,13 +260,17 @@ std::vector<std::tuple<int, float, float, float, float>> compute_recall(
             // Get distances for this query
             std::vector<std::pair<float, int>> query_distances;
             for (size_t j = 0; j < n_clusters; ++j) {
-                query_distances.push_back({distances[query_idx * n_clusters + j], static_cast<int>(j)});
+                query_distances.push_back(
+                    {distances[query_idx * n_clusters + j], static_cast<int>(j)}
+                );
             }
 
             // Sort by distance to get top-N centroids
-            std::partial_sort(query_distances.begin(),
-                            query_distances.begin() + centroids_to_explore,
-                            query_distances.end());
+            std::partial_sort(
+                query_distances.begin(),
+                query_distances.begin() + centroids_to_explore,
+                query_distances.end()
+            );
 
             // Create set of top centroid indices and count vectors to visit
             std::unordered_set<int> top_centroids;
@@ -303,12 +313,19 @@ std::vector<std::tuple<int, float, float, float, float>> compute_recall(
                 float diff = recall - average_recall;
                 variance += diff * diff;
             }
-            variance /= static_cast<float>(query_recalls.size() - 1);  // Sample standard deviation (Bessel's correction)
+            variance /= static_cast<float>(
+                query_recalls.size() - 1
+            ); // Sample standard deviation (Bessel's correction)
             std_recall = std::sqrt(variance);
         }
 
-        float avg_vectors_to_visit = static_cast<float>(total_vectors_to_visit) / static_cast<float>(n_queries);
-        results.push_back(std::make_tuple(centroids_to_explore, explore_frac, average_recall, std_recall, avg_vectors_to_visit));
+        float avg_vectors_to_visit =
+            static_cast<float>(total_vectors_to_visit) / static_cast<float>(n_queries);
+        results.push_back(
+            std::make_tuple(
+                centroids_to_explore, explore_frac, average_recall, std_recall, avg_vectors_to_visit
+            )
+        );
     }
 
     return results;
@@ -317,14 +334,25 @@ std::vector<std::tuple<int, float, float, float, float>> compute_recall(
 /**
  * @brief Print recall results in a formatted table.
  *
- * @param results Vector of tuples (centroids_to_explore, explore_fraction, recall_mean, recall_std, avg_vectors_to_visit)
+ * @param results Vector of tuples (centroids_to_explore, explore_fraction, recall_mean, recall_std,
+ * avg_vectors_to_visit)
  * @param knn KNN value used for this result set
  */
-inline void print_recall_results(const std::vector<std::tuple<int, float, float, float, float>>& results, int knn) {
+inline void print_recall_results(
+    const std::vector<std::tuple<int, float, float, float, float>>& results,
+    int knn
+) {
     printf("\n--- Recall@%d ---\n", knn);
-    for (const auto& [centroids_to_explore, explore_frac, recall, std_recall, avg_vectors] : results) {
-        printf("Recall@%4d (%5.2f%% centroids, %8.0f avg vectors): %.4f ± %.4f\n",
-               centroids_to_explore, explore_frac * 100.0f, avg_vectors, recall, std_recall);
+    for (const auto& [centroids_to_explore, explore_frac, recall, std_recall, avg_vectors] :
+         results) {
+        printf(
+            "Recall@%4d (%5.2f%% centroids, %8.0f avg vectors): %.4f ± %.4f\n",
+            centroids_to_explore,
+            explore_frac * 100.0f,
+            avg_vectors,
+            recall,
+            std_recall
+        );
     }
 }
 
@@ -337,7 +365,8 @@ inline bool create_directory_recursive(const std::string& path) {
     std::string segment;
 
     while (std::getline(path_stream, segment, '/')) {
-        if (segment.empty()) continue;
+        if (segment.empty())
+            continue;
         current_path += "/" + segment;
 
         struct stat st;
@@ -407,16 +436,21 @@ inline void write_results_to_csv(
 
     // Write header if file is new
     if (!file_exists) {
-        csv_file << "timestamp,algorithm,dataset,n_iters,actual_iterations,dimensionality,data_size,n_clusters,"
+        csv_file << "timestamp,algorithm,dataset,n_iters,actual_iterations,dimensionality,data_"
+                    "size,n_clusters,"
                  << "construction_time_ms,threads,final_objective";
 
         // Add columns for each KNN and explore fraction combination
         for (int knn : KNN_VALUES) {
             for (float explore_frac : EXPLORE_FRACTIONS) {
-                csv_file << ",recall@" << knn << "@" << std::fixed << std::setprecision(2) << (explore_frac * 100.0f);
-                csv_file << ",recall_std@" << knn << "@" << std::fixed << std::setprecision(2) << (explore_frac * 100.0f);
-                csv_file << ",centroids_explored@" << knn << "@" << std::fixed << std::setprecision(2) << (explore_frac * 100.0f);
-                csv_file << ",vectors_explored@" << knn << "@" << std::fixed << std::setprecision(2) << (explore_frac * 100.0f);
+                csv_file << ",recall@" << knn << "@" << std::fixed << std::setprecision(2)
+                         << (explore_frac * 100.0f);
+                csv_file << ",recall_std@" << knn << "@" << std::fixed << std::setprecision(2)
+                         << (explore_frac * 100.0f);
+                csv_file << ",centroids_explored@" << knn << "@" << std::fixed
+                         << std::setprecision(2) << (explore_frac * 100.0f);
+                csv_file << ",vectors_explored@" << knn << "@" << std::fixed << std::setprecision(2)
+                         << (explore_frac * 100.0f);
             }
         }
 
@@ -433,12 +467,13 @@ inline void write_results_to_csv(
 
     // Write data row
     csv_file << timestamp << "," << algorithm << "," << dataset << "," << n_iters << ","
-             << actual_iterations << "," << dimensionality << "," << data_size << "," << n_clusters << ","
-             << std::fixed << std::setprecision(2) << construction_time_ms << "," << threads << ","
-             << std::setprecision(6) << final_objective;
+             << actual_iterations << "," << dimensionality << "," << data_size << "," << n_clusters
+             << "," << std::fixed << std::setprecision(2) << construction_time_ms << "," << threads
+             << "," << std::setprecision(6) << final_objective;
 
     // Write KNN=10 results
-    for (const auto& [centroids_to_explore, explore_frac, recall, std_recall, avg_vectors] : results_knn_10) {
+    for (const auto& [centroids_to_explore, explore_frac, recall, std_recall, avg_vectors] :
+         results_knn_10) {
         csv_file << "," << std::setprecision(6) << recall;
         csv_file << "," << std::setprecision(6) << std_recall;
         csv_file << "," << centroids_to_explore;
@@ -446,7 +481,8 @@ inline void write_results_to_csv(
     }
 
     // Write KNN=100 results
-    for (const auto& [centroids_to_explore, explore_frac, recall, std_recall, avg_vectors] : results_knn_100) {
+    for (const auto& [centroids_to_explore, explore_frac, recall, std_recall, avg_vectors] :
+         results_knn_100) {
         csv_file << "," << std::setprecision(6) << recall;
         csv_file << "," << std::setprecision(6) << std_recall;
         csv_file << "," << centroids_to_explore;

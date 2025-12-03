@@ -47,4 +47,3 @@ class IndexPDXIVF<Quantization::u8> {
 };
 
 } // namespace skmeans
-

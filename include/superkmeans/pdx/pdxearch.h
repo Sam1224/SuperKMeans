@@ -1,11 +1,11 @@
 #pragma once
 
+#include "superkmeans/distance_computers/base_computers.h"
+#include "superkmeans/pdx/adsampling.h"
+#include "superkmeans/pdx/pdx_ivf.h"
+#include "superkmeans/pdx/utils.h"
 #include <algorithm>
 #include <cassert>
-#include "superkmeans/distance_computers/base_computers.h"
-#include "superkmeans/pdx/pdx_ivf.h"
-#include "superkmeans/pdx/adsampling.h"
-#include "superkmeans/pdx/utils.h"
 
 namespace skmeans {
 
@@ -46,27 +46,27 @@ class PDXearch {
     PDXearch(INDEX_TYPE& data_index, Pruner& pruner) : pruner(pruner), pdx_data(data_index) {}
 
   protected:
-    const float selectivity_threshold = 0.80;  ///< Target fraction of vectors to prune in warmup phase
+    const float selectivity_threshold =
+        0.80; ///< Target fraction of vectors to prune in warmup phase
 
     /**
      * @brief Retrieves the pruning threshold from the pruner.
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE
-    void GetPruningThreshold(
+    SKM_NO_INLINE void GetPruningThreshold(
         KNNCandidate<Q>& best_candidate,
         skmeans_distance_t<Q>& pruning_threshold,
         uint32_t current_dimension_idx
     ) {
-        pruning_threshold = pruner.template GetPruningThreshold<Q>(best_candidate, current_dimension_idx);
+        pruning_threshold =
+            pruner.template GetPruningThreshold<Q>(best_candidate, current_dimension_idx);
     }
 
     /**
      * @brief Updates the positions array to keep only non-pruned candidates.
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE
-    void EvaluatePruningPredicateOnPositionsArray(
+    SKM_NO_INLINE void EvaluatePruningPredicateOnPositionsArray(
         size_t n_vectors,
         size_t& n_vectors_not_pruned,
         uint32_t* pruning_positions,
@@ -85,8 +85,7 @@ class PDXearch {
      * @brief Initializes the positions array with indices of non-pruned vectors.
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE
-    void InitPositionsArray(
+    SKM_NO_INLINE void InitPositionsArray(
         size_t n_vectors,
         size_t& n_vectors_not_pruned,
         uint32_t* pruning_positions,
@@ -94,11 +93,7 @@ class PDXearch {
         skmeans_distance_t<Q>* pruning_distances
     ) {
         UtilsComputer<Q>::InitPositionsArray(
-            n_vectors,
-            n_vectors_not_pruned,
-            pruning_positions,
-            pruning_threshold,
-            pruning_distances
+            n_vectors, n_vectors_not_pruned, pruning_positions, pruning_threshold, pruning_distances
         );
     }
 
@@ -120,12 +115,12 @@ class PDXearch {
      * @param current_dimension_idx Number of dimensions processed (updated)
      * @param vector_indices Mapping from local to global vector indices
      * @param prev_top_1 Previous best candidate index (for early exit)
-     * @param aux_data Optional auxiliary horizontal data for vertical dimensions
+     * @param aux_vertical_dimensions_in_horizontal_layout Optional auxiliary horizontal data for
+     * vertical dimensions
      * @param initial_not_pruned_out Optional output for initial non-pruned count
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE
-    void Prune(
+    SKM_NO_INLINE void Prune(
         const skmeans_value_t<Q>* SKM_RESTRICT query,
         const skmeans_value_t<Q>* SKM_RESTRICT data,
         const size_t n_vectors,
@@ -137,7 +132,8 @@ class PDXearch {
         uint32_t& current_dimension_idx,
         const uint32_t* vector_indices,
         const uint32_t prev_top_1,
-        const skmeans_value_t<Q>* SKM_RESTRICT aux_data = nullptr,
+        const skmeans_value_t<Q>* SKM_RESTRICT aux_vertical_dimensions_in_horizontal_layout =
+            nullptr,
         size_t* initial_not_pruned_out = nullptr
     ) {
         GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
@@ -178,8 +174,7 @@ class PDXearch {
             current_dimension_idx += H_DIM_SIZE;
             GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
             assert(
-                current_dimension_idx == current_vertical_dimension +
-                current_horizontal_dimension
+                current_dimension_idx == current_vertical_dimension + current_horizontal_dimension
             );
             EvaluatePruningPredicateOnPositionsArray<Q>(
                 cur_n_vectors_not_pruned,
@@ -194,18 +189,19 @@ class PDXearch {
         ) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
             // !We have the data also in the Horizontal layout, so we go till the end
-            size_t dimensions_left =
-                pdx_data.num_vertical_dimensions - current_vertical_dimension;
+            size_t dimensions_left = pdx_data.num_vertical_dimensions - current_vertical_dimension;
             size_t offset_query = current_vertical_dimension;
             for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                 size_t v_idx = pruning_positions[vector_idx];
-                auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
+                auto data_pos = aux_vertical_dimensions_in_horizontal_layout +
+                                (v_idx * pdx_data.num_vertical_dimensions) +
                                 current_vertical_dimension;
                 __builtin_prefetch(data_pos, 0, 1);
             }
             for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                 size_t v_idx = pruning_positions[vector_idx];
-                auto data_pos = aux_data + (v_idx * pdx_data.num_vertical_dimensions) +
+                auto data_pos = aux_vertical_dimensions_in_horizontal_layout +
+                                (v_idx * pdx_data.num_vertical_dimensions) +
                                 current_vertical_dimension;
                 pruning_distances[v_idx] += DistanceComputer<alpha, Q>::Horizontal(
                     query + offset_query, data_pos, dimensions_left
@@ -325,7 +321,7 @@ class PDXearch {
                 current_dimension_idx,
                 cluster.indices,
                 prev_top_1,
-                cluster.aux_hor_data,
+                cluster.aux_vertical_dimensions_in_horizontal_layout,
                 &initial_not_pruned
             );
             // Accumulate the initial not-pruned count for this cluster
@@ -345,7 +341,6 @@ class PDXearch {
         BuildResultSet(top_embedding);
         return top_embedding;
     }
-
 };
 
 } // namespace skmeans

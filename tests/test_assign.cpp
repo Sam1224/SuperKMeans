@@ -1,9 +1,9 @@
-#include <gtest/gtest.h>
-#include <fstream>
-#include <vector>
 #include <cmath>
-#include <random>
+#include <fstream>
+#include <gtest/gtest.h>
 #include <omp.h>
+#include <random>
+#include <vector>
 
 #include "superkmeans/common.h"
 #include "superkmeans/superkmeans.h"
@@ -11,7 +11,12 @@
 namespace {
 
 // Helper function to generate synthetic clusterable data
-std::vector<float> make_blobs(size_t n_samples, size_t n_features, size_t n_centers, unsigned int random_state = 42) {
+std::vector<float> make_blobs(
+    size_t n_samples,
+    size_t n_features,
+    size_t n_centers,
+    unsigned int random_state = 42
+) {
     std::mt19937 gen(random_state);
 
     // Random cluster centers
@@ -41,18 +46,17 @@ std::vector<float> make_blobs(size_t n_samples, size_t n_features, size_t n_cent
 } // anonymous namespace
 
 class AssignTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        omp_set_num_threads(10);
-    }
+  protected:
+    void SetUp() override { omp_set_num_threads(10); }
 };
 
 TEST_F(AssignTest, AssignMatchesTrainAssignments_SIFT_NoSampling) {
     const size_t n = 1000000;
     const size_t d = 128;
-    const size_t n_clusters = std::max<size_t>(1u, static_cast<size_t>(std::sqrt(static_cast<double>(n)) * 4.0));
+    const size_t n_clusters =
+        std::max<size_t>(1u, static_cast<size_t>(std::sqrt(static_cast<double>(n)) * 4.0));
     const int n_iters = 5;
-    const float sampling_fraction = 1.0f;  // No sampling - use all data
+    const float sampling_fraction = 1.0f; // No sampling - use all data
 
     std::string path_root = std::string(CMAKE_SOURCE_DIR);
     std::string filename = path_root + "/data_sift.bin";
@@ -77,7 +81,9 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SIFT_NoSampling) {
     config.unrotate_centroids = true;
     config.perform_assignments = true;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
 
     auto centroids = kmeans.Train(data.data(), n);
 
@@ -86,11 +92,7 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SIFT_NoSampling) {
     ASSERT_EQ(train_assignments.size(), n);
 
     // Now run Assign() with raw data and unrotated centroids
-    auto assign_assignments = kmeans.Assign(
-        data.data(),
-        centroids.data(),
-        n, n_clusters
-    );
+    auto assign_assignments = kmeans.Assign(data.data(), centroids.data(), n, n_clusters);
     ASSERT_EQ(assign_assignments.size(), n);
 
     // Compare assignments
@@ -129,16 +131,17 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SyntheticClusters) {
     config.unrotate_centroids = true;
     config.perform_assignments = true;
 
-    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(n_clusters, d, config);
+    auto kmeans = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+        n_clusters, d, config
+    );
 
     auto centroids = kmeans.Train(data.data(), n);
 
     const auto& train_assignments = kmeans._assignments;
-    auto assign_assignments = kmeans.Assign(
-        data.data(), centroids.data(), n, n_clusters
-    );
+    auto assign_assignments = kmeans.Assign(data.data(), centroids.data(), n, n_clusters);
 
-    // For synthetic clusterable data with no sampling, assignments should match exactly or very closely
+    // For synthetic clusterable data with no sampling, assignments should match exactly or very
+    // closely
     size_t mismatches = 0;
     for (size_t i = 0; i < n; ++i) {
         if (train_assignments[i] != assign_assignments[i]) {
@@ -147,6 +150,8 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SyntheticClusters) {
     }
 
     double mismatch_pct = 100.0 * static_cast<double>(mismatches) / static_cast<double>(n);
-    EXPECT_LE(mismatch_pct, 0.01)
-        << "Synthetic clusterable data should have very low mismatch rate, got " << mismatch_pct << "%";
+    EXPECT_LE(
+        mismatch_pct, 0.01
+    ) << "Synthetic clusterable data should have very low mismatch rate, got "
+      << mismatch_pct << "%";
 }

@@ -20,40 +20,44 @@ namespace skmeans {
  */
 struct SuperKMeansConfig {
     // Training parameters
-    uint32_t iters = 25;                    ///< Number of k-means iterations
-    float sampling_fraction = 1.0f;         ///< Fraction of data to sample (0.0 to 1.0)
-    uint32_t n_threads = 0;                 ///< Number of CPU threads (0 = auto-detect max)
-    uint32_t seed = 42;                     ///< Random seed for reproducibility
-    bool use_blas_only = false;             ///< Whether to use BLAS-only computation (no PDX pruning) for all iterations
+    uint32_t iters = 25;            ///< Number of k-means iterations
+    float sampling_fraction = 1.0f; ///< Fraction of data to sample (0.0 to 1.0)
+    uint32_t n_threads = 0;         ///< Number of CPU threads (0 = auto-detect max)
+    uint32_t seed = 42;             ///< Random seed for reproducibility
+    bool use_blas_only =
+        false; ///< Whether to use BLAS-only computation (no PDX pruning) for all iterations
 
     // Convergence parameters
-    float tol = 1e-8f;                      ///< Tolerance for shift-based early termination
-    float recall_tol = 0.001f;              ///< Tolerance for recall-based early termination
-    bool early_termination = false;         ///< Whether to stop early on convergence
+    float tol = 1e-8f;              ///< Tolerance for shift-based early termination
+    float recall_tol = 0.001f;      ///< Tolerance for recall-based early termination
+    bool early_termination = false; ///< Whether to stop early on convergence
 
     // Query/Recall parameters
-    bool sample_queries = false;            ///< Whether to sample queries from data
-    size_t objective_k = 100;               ///< Number of nearest neighbors for recall computation
-    float ann_explore_fraction = 0.01f;     ///< Fraction of centroids to explore (0.0 to 1.0)
+    bool sample_queries = false;        ///< Whether to sample queries from data
+    size_t objective_k = 100;           ///< Number of nearest neighbors for recall computation
+    float ann_explore_fraction = 0.01f; ///< Fraction of centroids to explore (0.0 to 1.0)
 
     // Output parameters
-    bool unrotate_centroids = true;         ///< Whether to unrotate centroids before returning
-    bool perform_assignments = false;       ///< Whether to perform final assignment pass
-    bool verbose = false;                   ///< Whether to print progress information
+    bool unrotate_centroids = true;   ///< Whether to unrotate centroids before returning
+    bool perform_assignments = false; ///< Whether to perform final assignment pass
+    bool verbose = false;             ///< Whether to print progress information
 };
 
 /**
  * @brief Statistics for a single iteration of SuperKMeans clustering.
  */
- struct SuperKMeansIterationStats {
-    size_t iteration = 0;              ///< Iteration number (1-indexed)
-    float objective = 0.0f;           ///< Total clustering cost (sum of distances)
-    float shift = 0.0f;               ///< Average squared centroid shift from previous iteration
-    size_t split = 0;                 ///< Number of clusters that were split (empty cluster handling)
-    float recall = 0.0f;              ///< Recall@k value (0.0 to 1.0, only when queries provided)
-    float not_pruned_pct = -1.0f;     ///< Percentage of vectors not pruned (0.0 to 1.0, -1.0 if not applicable)
-    uint32_t partial_d = 0;           ///< Number of dimensions used for partial distance computation (0 if not applicable)
-    bool is_blas_only = false;        ///< Whether this iteration used BLAS-only computation (no PDX pruning)
+struct SuperKMeansIterationStats {
+    size_t iteration = 0;   ///< Iteration number (1-indexed)
+    float objective = 0.0f; ///< Total clustering cost (sum of distances)
+    float shift = 0.0f;     ///< Average squared centroid shift from previous iteration
+    size_t split = 0;       ///< Number of clusters that were split (empty cluster handling)
+    float recall = 0.0f;    ///< Recall@k value (0.0 to 1.0, only when queries provided)
+    float not_pruned_pct =
+        -1.0f; ///< Percentage of vectors not pruned (0.0 to 1.0, -1.0 if not applicable)
+    uint32_t partial_d =
+        0; ///< Number of dimensions used for partial distance computation (0 if not applicable)
+    bool is_blas_only =
+        false; ///< Whether this iteration used BLAS-only computation (no PDX pruning)
 };
 
 template <Quantization q = Quantization::f32, DistanceFunction alpha = DistanceFunction::l2>
@@ -88,7 +92,7 @@ class SuperKMeans {
         }
         // Set thread count: 0 means auto-detect max available
         _n_threads = (_config.n_threads == 0) ? omp_get_max_threads() : _config.n_threads;
-        g_n_threads = _n_threads;  // Also set global for external functions
+        g_n_threads = _n_threads; // Also set global for external functions
         _pruner = std::make_unique<Pruner>(dimensionality, PRUNER_INITIAL_THRESHOLD, _config.seed);
     }
 
@@ -107,7 +111,8 @@ class SuperKMeans {
      * @param data Pointer to the data matrix (row-major, n × d)
      * @param n Number of points (rows) in the data matrix
      * @param queries Optional pointer to query vectors for recall computation
-     * @param n_queries Number of query vectors (ignored if queries is nullptr and sample_queries is false)
+     * @param n_queries Number of query vectors (ignored if queries is nullptr and sample_queries is
+     * false)
      * @return std::vector<skmeans_centroid_value_t<q>> Trained centroids
      */
     std::vector<skmeans_centroid_value_t<q>> Train(
@@ -120,7 +125,6 @@ class SuperKMeans {
         if (_trained) {
             throw std::runtime_error("The clustering has already been trained");
         }
-        
 
         iteration_stats.clear();
 
@@ -130,7 +134,9 @@ class SuperKMeans {
             );
         }
         if (n_queries > 0 && queries == nullptr && !_config.sample_queries) {
-            throw std::invalid_argument("Queries must be provided if n_queries > 0 and sample_queries is false");
+            throw std::invalid_argument(
+                "Queries must be provided if n_queries > 0 and sample_queries is false"
+            );
         }
         const vector_value_t* SKM_RESTRICT data_p = data;
         _n_samples = GetNVectorsToSample(n);
@@ -153,7 +159,8 @@ class SuperKMeans {
         if (_config.verbose) {
             std::cout << "Generating centroids..." << std::endl;
         }
-        //! _centroids and _partial_horizontal_centroids are always wrapped with the PDXLayout object
+        //! _centroids and _partial_horizontal_centroids are always wrapped with the PDXLayout
+        //! object
         _vertical_d = PDXLayout<q, alpha>::GetDimensionSplit(_d).vertical_d;
         // Set initial_partial_d dynamically as half of vertical_d
         _initial_partial_d = std::max<uint32_t>(8, _vertical_d / 2);
@@ -180,7 +187,8 @@ class SuperKMeans {
         SampleVectors(data_p, data_samples_buffer, n, _n_samples);
         auto data_to_cluster = data_samples_buffer.data();
 
-        // We use _prev_centroids to store the rotated initial centroids, to avoid allocating a new buffer
+        // We use _prev_centroids to store the rotated initial centroids, to avoid allocating a new
+        // buffer
         {
             SKM_PROFILE_SCOPE("rotator");
             if (_config.verbose)
@@ -195,9 +203,13 @@ class SuperKMeans {
         std::vector<vector_value_t> rotated_queries;
         if (n_queries) {
             // Compute number of centroids to explore from the fraction parameter (minimum 1)
-            _centroids_to_explore = std::max<size_t>(static_cast<size_t>(_n_clusters * _config.ann_explore_fraction), 1);
+            _centroids_to_explore = std::max<size_t>(
+                static_cast<size_t>(_n_clusters * _config.ann_explore_fraction), 1
+            );
             if (_config.verbose) {
-                std::cout << "Centroids to explore: " << _centroids_to_explore << " (" << _config.ann_explore_fraction * 100.0f << "% of " << _n_clusters << ")" << std::endl;
+                std::cout << "Centroids to explore: " << _centroids_to_explore << " ("
+                          << _config.ann_explore_fraction * 100.0f << "% of " << _n_clusters << ")"
+                          << std::endl;
             }
             {
                 SKM_PROFILE_SCOPE("allocator");
@@ -208,8 +220,11 @@ class SuperKMeans {
             rotated_queries.resize(n_queries * _d);
             if (_config.sample_queries) {
                 std::cout << "Sampling queries from data..." << std::endl;
-                // We skip the _n_clusters as we don't want the 1st iteration centroids to be the queries
-                SampleVectors<false>(data_to_cluster, rotated_queries, _n_samples, n_queries, _n_clusters);
+                // We skip the _n_clusters as we don't want the 1st iteration centroids to be the
+                // queries
+                SampleVectors<false>(
+                    data_to_cluster, rotated_queries, _n_samples, n_queries, _n_clusters
+                );
             } else {
                 // We already did a validation step to ensure that queries is not nullptr
                 SKM_PROFILE_SCOPE("rotator");
@@ -222,11 +237,7 @@ class SuperKMeans {
         }
 
         // First iteration: Only Blas
-        InitAssignAndUpdateCentroids(
-            data_to_cluster,
-            _prev_centroids.data(),
-            all_distances.data()
-        );
+        InitAssignAndUpdateCentroids(data_to_cluster, _prev_centroids.data(), all_distances.data());
         ConsolidateCentroids();
         ComputeCost();
         ComputeShift();
@@ -250,7 +261,8 @@ class SuperKMeans {
         if (_config.verbose)
             std::cout << "Iteration 1" << "/" << _config.iters << " | Objective: " << _cost
                       << " | Shift: " << _shift << " | Split: " << _n_split
-                      << " | Recall: " << _recall << std::endl << std::endl;
+                      << " | Recall: " << _recall << std::endl
+                      << std::endl;
         // End of First iteration
 
         if (_config.iters <= 1) {
@@ -266,16 +278,18 @@ class SuperKMeans {
         float best_recall = _recall;
         size_t iters_without_improvement = 0;
 
-        // Special path for low-dimensional data or when use_blas_only is enabled: use BLAS-only for all iterations
+        // Special path for low-dimensional data or when use_blas_only is enabled: use BLAS-only for
+        // all iterations
         if (_d < 128 || _config.use_blas_only) {
             for (; iter_idx < _config.iters; ++iter_idx) {
-                // After swap: _prev_centroids has old centroids, _horizontal_centroids will be zeroed for accumulation
+                // After swap: _prev_centroids has old centroids, _horizontal_centroids will be
+                // zeroed for accumulation
                 std::swap(_horizontal_centroids, _prev_centroids);
                 // Recompute centroid norms for the (now in _prev_centroids) old centroids
                 GetL2NormsRowMajor(_prev_centroids.data(), _n_clusters, _centroid_norms.data());
                 InitAssignAndUpdateCentroids(
                     data_to_cluster,
-                    _prev_centroids.data(),  // Search using old centroids
+                    _prev_centroids.data(), // Search using old centroids
                     all_distances.data()
                 );
                 ConsolidateCentroids();
@@ -286,7 +300,9 @@ class SuperKMeans {
                 }
                 if (n_queries) {
                     // Update centroid norms to match the NEW centroids (after ConsolidateCentroids)
-                    GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, _centroid_norms.data());
+                    GetL2NormsRowMajor(
+                        _horizontal_centroids.data(), _n_clusters, _centroid_norms.data()
+                    );
                     _recall = ComputeRecall(rotated_queries.data(), n_queries);
                 }
                 {
@@ -302,10 +318,14 @@ class SuperKMeans {
                 if (_config.verbose)
                     std::cout << "Iteration " << iter_idx + 1 << "/" << _config.iters
                               << " | Objective: " << _cost << " | Shift: " << _shift
-                              << " | Split: " << _n_split
-                              << " | Recall: " << _recall << " [BLAS-only]" << std::endl << std::endl;
+                              << " | Split: " << _n_split << " | Recall: " << _recall
+                              << " [BLAS-only]" << std::endl
+                              << std::endl;
                 // Early stopping if converged
-                if (_config.early_termination && ShouldStopEarly(n_queries > 0, best_recall, iters_without_improvement, iter_idx)) {
+                if (_config.early_termination &&
+                    ShouldStopEarly(
+                        n_queries > 0, best_recall, iters_without_improvement, iter_idx
+                    )) {
                     break;
                 }
             }
@@ -320,37 +340,42 @@ class SuperKMeans {
             return output_centroids;
         }
 
-
         // Rest of iterations
         std::vector<vector_value_t> centroids_partial_norms(_n_clusters);
         // Buffer to store per-vector not-pruned counts for tuning _initial_partial_d
         std::vector<size_t> not_pruned_counts(_n_samples);
         GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
         for (; iter_idx < _config.iters; ++iter_idx) {
-            // After swap: _prev_centroids has old centroids, _horizontal_centroids will be zeroed for accumulation
+            // After swap: _prev_centroids has old centroids, _horizontal_centroids will be zeroed
+            // for accumulation
             std::swap(_horizontal_centroids, _prev_centroids);
             GetL2NormsRowMajor(
-                _prev_centroids.data(), _n_clusters, centroids_partial_norms.data(), _initial_partial_d
+                _prev_centroids.data(),
+                _n_clusters,
+                centroids_partial_norms.data(),
+                _initial_partial_d
             );
             // Reset the not-pruned counts buffer
             std::fill(not_pruned_counts.begin(), not_pruned_counts.end(), 0);
             AssignAndUpdateCentroidsPartialBatched(
                 data_to_cluster,
-                _prev_centroids.data(),  // Search using _prev_centroids
+                _prev_centroids.data(), // Search using _prev_centroids
                 centroids_partial_norms.data(),
                 all_distances.data(),
                 centroids_pdx_wrapper,
                 not_pruned_counts.data()
             );
-            
+
             // Tune _initial_partial_d based on the average not-pruned percentage
             bool partial_d_changed = false;
-            float avg_not_pruned_pct = TuneInitialPartialD(not_pruned_counts.data(), _n_samples, _n_clusters, partial_d_changed);
+            float avg_not_pruned_pct = TuneInitialPartialD(
+                not_pruned_counts.data(), _n_samples, _n_clusters, partial_d_changed
+            );
             // If _initial_partial_d changed, recompute the data norms with the new partial_d
             if (partial_d_changed) {
                 GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
             }
-            
+
             ConsolidateCentroids();
             ComputeCost();
             ComputeShift();
@@ -360,7 +385,9 @@ class SuperKMeans {
             if (n_queries) {
                 // Update centroid norms with FULL norms for recall computation
                 // (PDX uses partial norms for distance computation, but recall needs full norms)
-                GetL2NormsRowMajor(_horizontal_centroids.data(), _n_clusters, _centroid_norms.data());
+                GetL2NormsRowMajor(
+                    _horizontal_centroids.data(), _n_clusters, _centroid_norms.data()
+                );
                 _recall = ComputeRecall(rotated_queries.data(), n_queries);
             }
             {
@@ -378,12 +405,13 @@ class SuperKMeans {
             if (_config.verbose)
                 std::cout << "Iteration " << iter_idx + 1 << "/" << _config.iters
                           << " | Objective: " << _cost << " | Shift: " << _shift
-                          << " | Split: " << _n_split 
-                          << " | Recall: " << _recall
+                          << " | Split: " << _n_split << " | Recall: " << _recall
                           << " | Not Pruned %: " << avg_not_pruned_pct * 100.0f
-                          << " | Partial D: " << _initial_partial_d << std::endl << std::endl;
+                          << " | Partial D: " << _initial_partial_d << std::endl
+                          << std::endl;
             // Early stopping if converged
-            if (_config.early_termination && ShouldStopEarly(n_queries > 0, best_recall, iters_without_improvement, iter_idx)) {
+            if (_config.early_termination &&
+                ShouldStopEarly(n_queries > 0, best_recall, iters_without_improvement, iter_idx)) {
                 break;
             }
         }
@@ -401,11 +429,11 @@ class SuperKMeans {
         return output_centroids;
     }
 
-
     /**
      * @brief Assign vectors to their nearest centroid using BLAS-based computation.
      *
-     * Both vectors and centroids are assumed to be in the same domain (no rotation/transformation needed).
+     * Both vectors and centroids are assumed to be in the same domain (no rotation/transformation
+     * needed).
      *
      * @param vectors The data matrix (row-major, n_vectors x d)
      * @param centroids The centroids matrix (row-major, n_centroids x d)
@@ -421,7 +449,7 @@ class SuperKMeans {
         const size_t n_centroids
     ) {
         SKM_PROFILE_SCOPE("assign");
-        
+
         // Compute norms for vectors and centroids
         std::vector<vector_value_t> vector_norms(n_vectors);
         std::vector<vector_value_t> centroid_norms_local(n_centroids);
@@ -435,12 +463,12 @@ class SuperKMeans {
             Eigen::Map<VectorR> c_norms(centroid_norms_local.data(), n_centroids);
             c_norms.noalias() = centroids_mat.rowwise().squaredNorm();
         }
-        
+
         // Allocate output and temporary buffers
         std::vector<uint32_t> assignments(n_vectors);
         std::vector<distance_t> distances(n_vectors);
         std::vector<distance_t> all_distances_buf(X_BATCH_SIZE * Y_BATCH_SIZE);
-        
+
         // Use batched BLAS computation for assignment
         batch_computer::FindNearestNeighbor(
             vectors,
@@ -454,7 +482,7 @@ class SuperKMeans {
             distances.data(),
             all_distances_buf.data()
         );
-        
+
         return assignments;
     }
 
@@ -686,7 +714,7 @@ class SuperKMeans {
         Eigen::Map<const MatrixR> new_mat(_horizontal_centroids.data(), _n_clusters, _d);
         Eigen::Map<const MatrixR> prev_mat(_prev_centroids.data(), _n_clusters, _d);
         _shift = 0.0f;
-#pragma omp parallel for reduction(+:_shift) num_threads(_n_threads)
+#pragma omp parallel for reduction(+ : _shift) num_threads(_n_threads)
         for (size_t i = 0; i < _n_clusters; ++i) {
             _shift += (new_mat.row(i) - prev_mat.row(i)).squaredNorm();
         }
@@ -756,8 +784,8 @@ class SuperKMeans {
             _recall_distances.data(),
             _tmp_distances_buffer.data()
         );
-        // For each query, compute recall@objective_k: how many of the GT clusters are found in the top-64 assignments
-        // Recall per query = (# matched GT assignments in top-64) / objective_k
+        // For each query, compute recall@objective_k: how many of the GT clusters are found in the
+        // top-64 assignments Recall per query = (# matched GT assignments in top-64) / objective_k
         // Final recall = average over all queries
         float sum_recall = 0.0f;
         for (size_t i = 0; i < n_queries; ++i) {
@@ -768,7 +796,8 @@ class SuperKMeans {
                 // Check if this GT assignment is present in the top-64 assignments for this query
                 bool found = false;
                 for (size_t t = 0; t < _centroids_to_explore; ++t) {
-                    // If a promising centroid is the same as the GT centroid assignment, then we have a match
+                    // If a promising centroid is the same as the GT centroid assignment, then we
+                    // have a match
                     if (_promising_centroids[i * _centroids_to_explore + t] == _assignments[gt]) {
                         found = true;
                         break;
@@ -778,7 +807,8 @@ class SuperKMeans {
                     ++found_in_query;
                 }
             }
-            sum_recall += static_cast<float>(found_in_query) / static_cast<float>(_config.objective_k);
+            sum_recall +=
+                static_cast<float>(found_in_query) / static_cast<float>(_config.objective_k);
         }
         return sum_recall / static_cast<float>(n_queries);
     }
@@ -793,17 +823,18 @@ class SuperKMeans {
      * @param n Number of data points
      * @return PDXLayout wrapper for the centroids
      */
-    PDXLayout<q, alpha> GenerateCentroids(
-        const vector_value_t* SKM_RESTRICT data
-    ) {
+    PDXLayout<q, alpha> GenerateCentroids(const vector_value_t* SKM_RESTRICT data) {
         {
             SKM_PROFILE_SCOPE("sampling");
             auto tmp_centroids_p = _horizontal_centroids.data();
             // First `n` samples similar to FAISS'
             for (size_t i = 0; i < _n_clusters; i += 1) {
-                // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector ones
+                // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector
+                // ones
                 memcpy(
-                    (void*) tmp_centroids_p, (void*) (data + (i * _d)), sizeof(centroid_value_t) * _d
+                    (void*) tmp_centroids_p,
+                    (void*) (data + (i * _d)),
+                    sizeof(centroid_value_t) * _d
                 );
                 tmp_centroids_p += _d;
             }
@@ -873,46 +904,55 @@ class SuperKMeans {
     }
 
     /**
-     * @brief Copies the first _vertical_d dimensions of centroids for efficient pruning on PDXearch.
-     * TODO(@lkuffo, high): We can avoid _partial_horizontal_centroids by using the full horizontal centroids in PDXearch.
+     * @brief Copies the first _vertical_d dimensions of centroids for efficient pruning on
+     * PDXearch.
+     * TODO(@lkuffo, high): We can avoid _partial_horizontal_centroids by using the full horizontal
+     * centroids in PDXearch.
      */
     void CentroidsToAuxiliaryHorizontal() {
         Eigen::Map<MatrixR> hor_centroids(_horizontal_centroids.data(), _n_clusters, _d);
-        Eigen::Map<MatrixR> out_aux_centroids(_partial_horizontal_centroids.data(), _n_clusters, _vertical_d);
+        Eigen::Map<MatrixR> out_aux_centroids(
+            _partial_horizontal_centroids.data(), _n_clusters, _vertical_d
+        );
         out_aux_centroids.noalias() = hor_centroids.leftCols(_vertical_d);
     }
 
     /**
      * @brief Tune _initial_partial_d based on the average not-pruned percentage.
-     * 
+     *
      * A safe range for pruning is between 75% - 90% of vectors pruned (i.e., 10% - 25% not pruned).
-     * - If avg_not_pruned_pct > 25% (i.e., less than 75% pruned), we reduce _initial_partial_d by 25%
-     *   to be more aggressive in pruning
-     * - If avg_not_pruned_pct < 10% (i.e., more than 90% pruned), we increase _initial_partial_d by 25%
-     *   to be less aggressive
+     * - If avg_not_pruned_pct > 25% (i.e., less than 75% pruned), we reduce _initial_partial_d by
+     * 25% to be more aggressive in pruning
+     * - If avg_not_pruned_pct < 10% (i.e., more than 90% pruned), we increase _initial_partial_d by
+     * 25% to be less aggressive
      * - _initial_partial_d is clamped between 8 and _vertical_d
-     * 
+     *
      * @param not_pruned_counts Buffer containing per-vector not-pruned counts
      * @param n_samples Number of X vectors
      * @param n_y Number of Y vectors (centroids)
      * @param partial_d_changed Output parameter: set to true if _initial_partial_d was changed
      * @return The computed average not-pruned percentage
      */
-    float TuneInitialPartialD(const size_t* not_pruned_counts, size_t n_samples, size_t n_y, bool& partial_d_changed) {
-        constexpr float MIN_NOT_PRUNED_PCT = 0.03f;  // 3% not pruned = 97% pruned
-        constexpr float MAX_NOT_PRUNED_PCT = 0.10f;  // 10% not pruned = 90% pruned
-        constexpr float ADJUSTMENT_FACTOR = 0.10f;   // 10% adjustment
+    float TuneInitialPartialD(
+        const size_t* not_pruned_counts,
+        size_t n_samples,
+        size_t n_y,
+        bool& partial_d_changed
+    ) {
+        constexpr float MIN_NOT_PRUNED_PCT = 0.03f; // 3% not pruned = 97% pruned
+        constexpr float MAX_NOT_PRUNED_PCT = 0.10f; // 10% not pruned = 90% pruned
+        constexpr float ADJUSTMENT_FACTOR = 0.10f;  // 10% adjustment
         constexpr uint32_t MIN_PARTIAL_D = 8;
-        
+
         // Calculate average not-pruned percentage from the buffer
         float avg_not_pruned_pct = 0.0f;
         for (size_t i = 0; i < n_samples; ++i) {
             avg_not_pruned_pct += static_cast<float>(not_pruned_counts[i]);
         }
         avg_not_pruned_pct /= static_cast<float>(n_samples * n_y);
-        
+
         uint32_t old_partial_d = _initial_partial_d;
-        
+
         if (avg_not_pruned_pct > MAX_NOT_PRUNED_PCT) {
             // Too many vectors not pruned (< MAX_NOT_PRUNED_PCT pruned), need more BLAS dimensions
             // Increase _initial_partial_d by ADJUSTMENT_FACTOR
@@ -922,16 +962,18 @@ class SuperKMeans {
             // Too few vectors not pruned (> MIN_NOT_PRUNED_PCT pruned), can reduce BLAS dimensions
             // Decrease _initial_partial_d by ADJUSTMENT_FACTOR
             uint32_t decrease = static_cast<uint32_t>(_initial_partial_d * ADJUSTMENT_FACTOR);
-            _initial_partial_d = std::max(_initial_partial_d - std::max(decrease, 1u), MIN_PARTIAL_D);
+            _initial_partial_d =
+                std::max(_initial_partial_d - std::max(decrease, 1u), MIN_PARTIAL_D);
         }
         partial_d_changed = (old_partial_d != _initial_partial_d);
-        
+
         // else: within safe range (75% - 90% pruned), no adjustment needed
         if (_config.verbose && partial_d_changed) {
-            std::cout << "Tuning _initial_partial_d: " << old_partial_d << " -> " << _initial_partial_d
-                      << " (avg not pruned: " << avg_not_pruned_pct * 100.0f << "%)" << std::endl;
+            std::cout << "Tuning _initial_partial_d: " << old_partial_d << " -> "
+                      << _initial_partial_d << " (avg not pruned: " << avg_not_pruned_pct * 100.0f
+                      << "%)" << std::endl;
         }
-        
+
         return avg_not_pruned_pct;
     }
 
@@ -949,14 +991,16 @@ class SuperKMeans {
 
     /**
      * @brief Check if training should stop early based on convergence criteria.
-     * 
+     *
      * Convergence is detected when either:
      * - Shift is below tolerance (_shift < _config.tol)
-     * - Recall hasn't improved by more than _config.recall_tol in RECALL_CONVERGENCE_PATIENCE consecutive iterations (when tracking recall)
-     * 
+     * - Recall hasn't improved by more than _config.recall_tol in RECALL_CONVERGENCE_PATIENCE
+     * consecutive iterations (when tracking recall)
+     *
      * @param tracking_recall Whether recall is being tracked (n_queries > 0)
      * @param best_recall Reference to the best recall seen so far (updated if current is better)
-     * @param iters_without_improvement Reference to counter of iterations without recall improvement
+     * @param iters_without_improvement Reference to counter of iterations without recall
+     * improvement
      * @param iter_idx Current iteration index (for verbose output)
      * @return true if training should stop, false otherwise
      */
@@ -969,11 +1013,11 @@ class SuperKMeans {
         // Check shift convergence
         if (_shift < _config.tol) {
             if (_config.verbose)
-                std::cout << "Converged at iteration " << iter_idx + 1 
-                          << " (shift " << _shift << " < tol " << _config.tol << ")" << std::endl;
+                std::cout << "Converged at iteration " << iter_idx + 1 << " (shift " << _shift
+                          << " < tol " << _config.tol << ")" << std::endl;
             return true;
         }
-        
+
         // Check recall convergence (only when tracking recall)
         if (tracking_recall) {
             float improvement = _recall - best_recall;
@@ -986,20 +1030,22 @@ class SuperKMeans {
                 iters_without_improvement++;
                 if (iters_without_improvement >= RECALL_CONVERGENCE_PATIENCE) {
                     if (_config.verbose)
-                        std::cout << "Converged at iteration " << iter_idx + 1 
-                                  << " (recall " << _recall << " hasn't improved by more than " 
-                                  << _config.recall_tol << " in " << RECALL_CONVERGENCE_PATIENCE << " iterations, best: " << best_recall << ")" << std::endl;
+                        std::cout << "Converged at iteration " << iter_idx + 1 << " (recall "
+                                  << _recall << " hasn't improved by more than "
+                                  << _config.recall_tol << " in " << RECALL_CONVERGENCE_PATIENCE
+                                  << " iterations, best: " << best_recall << ")" << std::endl;
                     return true;
                 }
             }
         }
-        
+
         return false;
     }
 
     /**
      * @brief Prepare centroids for output (applies any necessary transformations).
-     * @param should_unrotate If true, unrotates centroids to original space; if false, returns rotated centroids.
+     * @param should_unrotate If true, unrotates centroids to original space; if false, returns
+     * rotated centroids.
      * @return Centroids ready for output
      */
     std::vector<centroid_value_t> GetOutputCentroids(bool should_unrotate) {
@@ -1060,7 +1106,7 @@ class SuperKMeans {
         // (we have not yet implemented rotation in-place)
         std::vector<vector_value_t> samples_tmp;
         const vector_value_t* src_data = data;
-        
+
         if (n_samples < n) {
             SKM_PROFILE_SCOPE("sampling");
             // Sequential sampling: take first n_samples vectors
@@ -1080,7 +1126,7 @@ class SuperKMeans {
                     (void*) (data + (n_skip * _d)),
                     sizeof(vector_value_t) * n_samples * _d
                 );
-                return;  // Done, no rotation needed
+                return; // Done, no rotation needed
             }
         }
 
@@ -1090,9 +1136,7 @@ class SuperKMeans {
             _pruner->Rotate(src_data, out_buffer.data(), n_samples);
         } else {
             memcpy(
-                (void*) out_buffer.data(),
-                (void*) src_data,
-                sizeof(vector_value_t) * n_samples * _d
+                (void*) out_buffer.data(), (void*) src_data, sizeof(vector_value_t) * n_samples * _d
             );
         }
     }
@@ -1119,8 +1163,9 @@ class SuperKMeans {
 
     // === Centroid data ===
     // TODO(@lkuffo, high): 3 copies of the centroids? Can we do better?
-    //    We can trivially avoid _partial_horizontal_centroids by using the full horizontal centroids in PDXearch.
-    //    We can also avoid _prev_centroids if we dont care about the shift convergence check.
+    //    We can trivially avoid _partial_horizontal_centroids by using the full horizontal
+    //    centroids in PDXearch. We can also avoid _prev_centroids if we dont care about the shift
+    //    convergence check.
     std::vector<centroid_value_t> _centroids;                    // PDX-layout centroids
     std::vector<centroid_value_t> _horizontal_centroids;         // Row-major centroids
     std::vector<centroid_value_t> _prev_centroids;               // Previous iteration centroids
@@ -1143,7 +1188,8 @@ class SuperKMeans {
     std::vector<distance_t> _recall_distances;
 
   public:
-    std::vector<uint32_t> _assignments;  // Public for user access
-    std::vector<SuperKMeansIterationStats> iteration_stats;  // Public for user access to iteration statistics
+    std::vector<uint32_t> _assignments; // Public for user access
+    std::vector<SuperKMeansIterationStats>
+        iteration_stats; // Public for user access to iteration statistics
 };
 } // namespace skmeans

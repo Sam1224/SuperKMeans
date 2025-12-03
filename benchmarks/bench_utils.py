@@ -7,7 +7,6 @@ import os
 import time
 from pathlib import Path
 
-
 # Path constants for benchmark data
 BENCHMARKS_ROOT = Path(__file__).parent
 DATA_DIR = BENCHMARKS_ROOT / 'data'
@@ -65,7 +64,6 @@ DATASET_PARAMS = {
     "contriever": (990000, 768)
 }
 
-
 # Standard exploration fractions for recall computation
 EXPLORE_FRACTIONS = [
     0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009,
@@ -73,7 +71,6 @@ EXPLORE_FRACTIONS = [
     0.0300, 0.0325, 0.0350, 0.0375, 0.0400, 0.0425, 0.0450, 0.0475, 0.0500,
     0.1
 ]
-
 
 # KNN values to test
 KNN_VALUES = [10, 100]
@@ -185,7 +182,8 @@ def print_recall_results(results, knn):
     """
     print(f"\n--- Recall@{knn} ---")
     for centroids_to_explore, explore_frac, recall, std_recall, avg_vectors in results:
-        print(f"Recall@{centroids_to_explore:4d} ({explore_frac*100:5.2f}% centroids, {avg_vectors:8.0f} avg vectors): {recall:.4f} ± {std_recall:.4f}")
+        print(
+            f"Recall@{centroids_to_explore:4d} ({explore_frac * 100:5.2f}% centroids, {avg_vectors:8.0f} avg vectors): {recall:.4f} ± {std_recall:.4f}")
 
 
 class Timer:
@@ -207,20 +205,20 @@ class Timer:
 
 
 def write_results_to_csv(
-    experiment_name,
-    algorithm,
-    dataset,
-    n_iters,
-    actual_iterations,
-    dimensionality,
-    data_size,
-    n_clusters,
-    construction_time_ms,
-    threads,
-    final_objective,
-    config_dict,
-    results_knn_10,
-    results_knn_100
+        experiment_name,
+        algorithm,
+        dataset,
+        n_iters,
+        actual_iterations,
+        dimensionality,
+        data_size,
+        n_clusters,
+        construction_time_ms,
+        threads,
+        final_objective,
+        config_dict,
+        results_knn_10,
+        results_knn_100
 ):
     """Write results to CSV file.
 
@@ -267,10 +265,10 @@ def write_results_to_csv(
     # Add columns for each KNN and explore fraction combination
     for knn in KNN_VALUES:
         for explore_frac in EXPLORE_FRACTIONS:
-            header.append(f'recall@{knn}@{explore_frac*100:.2f}')
-            header.append(f'recall_std@{knn}@{explore_frac*100:.2f}')
-            header.append(f'centroids_explored@{knn}@{explore_frac*100:.2f}')
-            header.append(f'vectors_explored@{knn}@{explore_frac*100:.2f}')
+            header.append(f'recall@{knn}@{explore_frac * 100:.2f}')
+            header.append(f'recall_std@{knn}@{explore_frac * 100:.2f}')
+            header.append(f'centroids_explored@{knn}@{explore_frac * 100:.2f}')
+            header.append(f'vectors_explored@{knn}@{explore_frac * 100:.2f}')
 
     header.append('config')
 
