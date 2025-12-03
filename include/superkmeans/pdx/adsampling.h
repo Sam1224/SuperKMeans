@@ -275,10 +275,6 @@ class ADSamplingPruner {
             out.col(0) *= inv_s0;
             out.rightCols(num_dimensions - 1) *= inv_s;
 
-            // Create intermediary buffer to avoid FFTW_MEASURE corrupting input
-            std::vector<float> temp_buffer(n * num_dimensions);
-            std::memcpy(temp_buffer.data(), out_buffer, n * num_dimensions * sizeof(float));
-
             // Apply inverse DCT (DCT-III = FFTW_REDFT01)
             fftwf_init_threads();
             fftwf_plan_with_nthreads(g_n_threads);
