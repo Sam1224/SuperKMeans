@@ -201,9 +201,30 @@ class ADSamplingPruner {
             if (IsPowerOf2(num_dimensions)) {
                 flag = FFTW_ESTIMATE;
             }
-
+            fftwf_plan plan;
+#ifdef __AVX2__
+            std::vector<float> temp_buffer(n * num_dimensions);
+            std::memcpy(temp_buffer.data(), out_buffer, n * num_dimensions * sizeof(float));
+            // fftwf_plan_with_nthreads(1);
             fftwf_plan_with_nthreads(g_n_threads);
-            fftwf_plan plan = fftwf_plan_many_r2r(
+            plan = fftwf_plan_many_r2r(
+                1,
+                &n0,
+                howmany,
+                temp_buffer.data(), /*in*/
+                NULL,
+                1,
+                n0,         /*inembed, istride, idist*/
+                out.data(), /*out*/
+                NULL,
+                1,
+                n0, /*onembed, ostride, odist*/
+                kind,
+                flag
+            );
+#else
+            fftwf_plan_with_nthreads(g_n_threads);
+            plan = fftwf_plan_many_r2r(
                 1,
                 &n0,
                 howmany,
@@ -218,9 +239,9 @@ class ADSamplingPruner {
                 kind,
                 flag
             );
+#endif
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-            // fftwf_cleanup_threads();
             const float s0 = std::sqrt(1.0f / (4.0f * num_dimensions));
             const float s = std::sqrt(1.0f / (2.0f * num_dimensions));
             out.col(0) *= s0;
