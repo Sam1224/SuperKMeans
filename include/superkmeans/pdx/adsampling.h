@@ -49,8 +49,12 @@ class ADSamplingPruner {
         std::mt19937 gen(seed);
         bool matrix_created = false;
 #ifdef HAS_FFTW
-        fftwf_init_threads();
+#ifdef __AVX2__
+        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
+#else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
+#endif
+            fftwf_init_threads();
             matrix.resize(1, num_dimensions);
             std::uniform_int_distribution<int> dist(0, 1);
             for (size_t i = 0; i < num_dimensions; ++i) {
@@ -88,8 +92,12 @@ class ADSamplingPruner {
         : num_dimensions(num_dims), epsilon0(eps0) {
         InitializeRatios();
 #ifdef HAS_FFTW
-        fftwf_init_threads();
+#ifdef __AVX2__
+        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
+#else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
+#endif
+            fftwf_init_threads();
             matrix =
                 Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
                     matrix_p, 1, num_dimensions
