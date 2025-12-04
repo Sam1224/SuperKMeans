@@ -1,4 +1,5 @@
 import os
+
 threads = os.cpu_count()
 os.environ["OMP_NUM_THREADS"] = str(threads)
 os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
@@ -6,7 +7,6 @@ os.environ["MKL_NUM_THREADS"] = str(threads)
 os.environ["BLIS_NUM_THREADS"] = str(threads)
 os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
 os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
-
 
 from sklearn.cluster import KMeans
 import numpy as np

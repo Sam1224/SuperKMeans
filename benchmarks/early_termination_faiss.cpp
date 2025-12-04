@@ -3,8 +3,8 @@
 
 #include <faiss/utils/utils.h>
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <omp.h>
 #include <random>
 #include <vector>
@@ -12,8 +12,8 @@
 #include <faiss/Clustering.h>
 #include <faiss/IndexFlat.h>
 
-#include "superkmeans/nanobench.h"
 #include "bench_utils.h"
+#include "superkmeans/nanobench.h"
 
 int main(int argc, char* argv[]) {
     // Experiment configuration
@@ -91,7 +91,8 @@ int main(int argc, char* argv[]) {
         double final_objective = clus.iteration_stats.back().obj;
 
         std::cout << "\nTraining completed in " << construction_time_ms << " ms" << std::endl;
-        std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters << ")" << std::endl;
+        std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters << ")"
+                  << std::endl;
         std::cout << "Final objective: " << final_objective << std::endl;
 
         // Compute recall if ground truth file exists
@@ -109,15 +110,19 @@ int main(int argc, char* argv[]) {
 
             // Use only first N_QUERIES queries
             int n_queries = bench_utils::N_QUERIES;
-            std::cout << "Using " << n_queries << " queries (loaded " << gt_map.size() << " from ground truth)" << std::endl;
+            std::cout << "Using " << n_queries << " queries (loaded " << gt_map.size()
+                      << " from ground truth)" << std::endl;
 
             // Load query vectors (only first n_queries)
             std::vector<float> queries(n_queries * d);
-            queries_file.read(reinterpret_cast<char*>(queries.data()), queries.size() * sizeof(float));
+            queries_file.read(
+                reinterpret_cast<char*>(queries.data()), queries.size() * sizeof(float)
+            );
             queries_file.close();
 
             // Get cluster assignments from FAISS
-            // FAISS doesn't store assignments directly, so we need to assign data points to nearest centroids
+            // FAISS doesn't store assignments directly, so we need to assign data points to nearest
+            // centroids
             std::vector<faiss::idx_t> assignments(n);
             std::vector<float> distances_to_centroids(n);
 
@@ -127,18 +132,18 @@ int main(int argc, char* argv[]) {
             // Assign each data point to its nearest centroid
             faiss::IndexFlatL2 centroid_index(d);
             centroid_index.add(n_clusters, centroids);
-            centroid_index.search(n, data.data(), 1, distances_to_centroids.data(), assignments.data());
+            centroid_index.search(
+                n, data.data(), 1, distances_to_centroids.data(), assignments.data()
+            );
 
             // Compute recall for both KNN values
             auto results_knn_10 = bench_utils::compute_recall(
-                gt_map, assignments, queries.data(), centroids,
-                n_queries, n_clusters, d, 10
+                gt_map, assignments, queries.data(), centroids, n_queries, n_clusters, d, 10
             );
             bench_utils::print_recall_results(results_knn_10, 10);
 
             auto results_knn_100 = bench_utils::compute_recall(
-                gt_map, assignments, queries.data(), centroids,
-                n_queries, n_clusters, d, 100
+                gt_map, assignments, queries.data(), centroids, n_queries, n_clusters, d, 100
             );
             bench_utils::print_recall_results(results_knn_100, 100);
 
@@ -157,10 +162,20 @@ int main(int argc, char* argv[]) {
 
             // Write results to CSV
             bench_utils::write_results_to_csv(
-                experiment_name, algorithm, dataset, n_iters, actual_iterations,
-                d, n, n_clusters, construction_time_ms,
-                static_cast<int>(THREADS), final_objective, config_map,
-                results_knn_10, results_knn_100
+                experiment_name,
+                algorithm,
+                dataset,
+                n_iters,
+                actual_iterations,
+                d,
+                n,
+                n_clusters,
+                construction_time_ms,
+                static_cast<int>(THREADS),
+                final_objective,
+                config_map,
+                results_knn_10,
+                results_knn_100
             );
         } else {
             if (!gt_file.good()) {
@@ -169,7 +184,8 @@ int main(int argc, char* argv[]) {
             if (!queries_file.good()) {
                 std::cout << "Queries file not found: " << queries_filename << std::endl;
             }
-            std::cout << "Skipping CSV output (recall computation requires ground truth)" << std::endl;
+            std::cout << "Skipping CSV output (recall computation requires ground truth)"
+                      << std::endl;
         }
     }
 }

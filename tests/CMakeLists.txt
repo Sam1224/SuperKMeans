@@ -18,11 +18,12 @@ enable_testing()
 set(TEST_COMMON_LIBS
     gtest
     gtest_main
+    ${MKL_COMMON_LIBS}
     ${BLAS_LINK_LIBRARIES}
 )
 
 if (FFTW_FOUND)
-    list(APPEND TEST_COMMON_LIBS ${FFTW_FLOAT_LIB} ${FFTW_FLOAT_THREADS_LIB})
+    list(APPEND TEST_COMMON_LIBS ${FFTW_FLOAT_LIB} ${FFTW_FLOAT_OPENMP_LIB})
 endif()
 
 # Test: Unrotate functionality

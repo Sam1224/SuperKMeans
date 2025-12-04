@@ -1,16 +1,16 @@
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <vector>
-#include <algorithm>
-#include <iomanip>
-#include <cstring>
-#include <cmath>
 
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/distance_computers/scalar_computers.h"
-#include "superkmeans/pdx/utils.h"
 #include "superkmeans/nanobench.h"
+#include "superkmeans/pdx/utils.h"
 
 constexpr size_t N_ITERATIONS = 10000;
 constexpr size_t DIMENSIONALITIES[] = {64, 128, 256, 512, 768, 1024, 1536};
@@ -19,11 +19,7 @@ constexpr size_t N_DIMS = sizeof(DIMENSIONALITIES) / sizeof(DIMENSIONALITIES[0])
 /**
  * @brief Generates random float vectors
  */
-void GenerateRandomVectors(
-    float* vector1,
-    float* vector2,
-    size_t n_dimensions
-) {
+void GenerateRandomVectors(float* vector1, float* vector2, size_t n_dimensions) {
     std::random_device rd;
     std::mt19937 gen(42); // Fixed seed for reproducibility
 
@@ -51,11 +47,9 @@ double BenchmarkScalarHorizontal(
     timer.Tic();
 
     for (size_t iter = 0; iter < n_iterations; ++iter) {
-        float distance = skmeans::ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
-            vector1,
-            vector2,
-            n_dimensions
-        );
+        float distance =
+            skmeans::ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::
+                Horizontal(vector1, vector2, n_dimensions);
         sum += distance;
     }
 
@@ -85,11 +79,9 @@ double BenchmarkSIMDHorizontal(
     timer.Tic();
 
     for (size_t iter = 0; iter < n_iterations; ++iter) {
-        float distance = skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
-            vector1,
-            vector2,
-            n_dimensions
-        );
+        float distance =
+            skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::
+                Horizontal(vector1, vector2, n_dimensions);
         sum += distance;
     }
 
@@ -107,17 +99,13 @@ double BenchmarkSIMDHorizontal(
  * @brief Verify both implementations produce the same results
  */
 bool VerifyCorrectness(const float* vector1, const float* vector2, size_t n_dimensions) {
-    float scalar_result = skmeans::ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
-        vector1,
-        vector2,
-        n_dimensions
-    );
+    float scalar_result =
+        skmeans::ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::
+            Horizontal(vector1, vector2, n_dimensions);
 
-    float simd_result = skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::Horizontal(
-        vector1,
-        vector2,
-        n_dimensions
-    );
+    float simd_result =
+        skmeans::DistanceComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>::
+            Horizontal(vector1, vector2, n_dimensions);
 
     // Allow small floating-point error
     float abs_error = std::abs(scalar_result - simd_result);
@@ -125,8 +113,7 @@ bool VerifyCorrectness(const float* vector1, const float* vector2, size_t n_dime
 
     if (rel_error > 1e-4f) {
         std::cerr << "ERROR: Result mismatch for d=" << n_dimensions
-                  << "! Scalar: " << scalar_result
-                  << ", SIMD: " << simd_result
+                  << "! Scalar: " << scalar_result << ", SIMD: " << simd_result
                   << ", Relative error: " << rel_error << std::endl;
         return false;
     }
@@ -201,7 +188,8 @@ int main() {
         float scalar_sum = 0.0f;
         float simd_sum = 0.0f;
 
-        double scalar_time = BenchmarkScalarHorizontal(vector1, vector2, d, N_ITERATIONS, scalar_sum);
+        double scalar_time =
+            BenchmarkScalarHorizontal(vector1, vector2, d, N_ITERATIONS, scalar_sum);
         double simd_time = BenchmarkSIMDHorizontal(vector1, vector2, d, N_ITERATIONS, simd_sum);
 
         // Prevent compiler from optimizing away
@@ -224,11 +212,8 @@ int main() {
     std::cout << std::endl;
 
     // Print table header
-    std::cout << std::setw(8) << "Dim"
-              << std::setw(15) << "Scalar (ns)"
-              << std::setw(15) << "SIMD (ns)"
-              << std::setw(12) << "Speedup"
-              << std::setw(18) << "Improvement (%)"
+    std::cout << std::setw(8) << "Dim" << std::setw(15) << "Scalar (ns)" << std::setw(15)
+              << "SIMD (ns)" << std::setw(12) << "Speedup" << std::setw(18) << "Improvement (%)"
               << std::endl;
     std::cout << std::string(68, '-') << std::endl;
 
@@ -237,14 +222,9 @@ int main() {
     for (const auto& result : results) {
         double improvement = (result.speedup - 1.0) * 100.0;
 
-        std::cout << std::setw(8) << result.dimensionality
-                  << std::setw(15) << result.scalar_time_ns
-                  << std::setw(15) << result.simd_time_ns
-                  << std::setw(12) << result.speedup
-                  << "x"
-                  << std::setw(16) << improvement
-                  << "%"
-                  << std::endl;
+        std::cout << std::setw(8) << result.dimensionality << std::setw(15) << result.scalar_time_ns
+                  << std::setw(15) << result.simd_time_ns << std::setw(12) << result.speedup << "x"
+                  << std::setw(16) << improvement << "%" << std::endl;
     }
 
     std::cout << std::endl;
@@ -259,21 +239,22 @@ int main() {
     std::cout << "Average speedup: " << std::setprecision(2) << avg_speedup << "x" << std::endl;
 
     // Find best and worst
-    auto best = std::max_element(results.begin(), results.end(),
-        [](const BenchmarkResult& a, const BenchmarkResult& b) {
-            return a.speedup < b.speedup;
-        });
+    auto best = std::max_element(
+        results.begin(),
+        results.end(),
+        [](const BenchmarkResult& a, const BenchmarkResult& b) { return a.speedup < b.speedup; }
+    );
 
-    auto worst = std::min_element(results.begin(), results.end(),
-        [](const BenchmarkResult& a, const BenchmarkResult& b) {
-            return a.speedup < b.speedup;
-        });
+    auto worst = std::min_element(
+        results.begin(),
+        results.end(),
+        [](const BenchmarkResult& a, const BenchmarkResult& b) { return a.speedup < b.speedup; }
+    );
 
     std::cout << "Best speedup:    " << std::setprecision(2) << best->speedup
               << "x (d=" << best->dimensionality << ")" << std::endl;
     std::cout << "Worst speedup:   " << std::setprecision(2) << worst->speedup
               << "x (d=" << worst->dimensionality << ")" << std::endl;
-
 
     return 0;
 }

@@ -1,15 +1,15 @@
+#include <algorithm>
+#include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <vector>
-#include <algorithm>
-#include <iomanip>
-#include <cstring>
 
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/distance_computers/scalar_computers.h"
-#include "superkmeans/pdx/utils.h"
 #include "superkmeans/nanobench.h"
+#include "superkmeans/pdx/utils.h"
 
 constexpr size_t N_DIMENSIONS = 1024;
 constexpr size_t N_ITERATIONS = 50000;
@@ -18,12 +18,7 @@ constexpr float FLIP_PROBABILITY = 0.5f; // 50% of values get sign flipped
 /**
  * @brief Generates random float data and masks
  */
-void GenerateRandomData(
-    float* data,
-    uint32_t* masks,
-    size_t n_dimensions,
-    float flip_probability
-) {
+void GenerateRandomData(float* data, uint32_t* masks, size_t n_dimensions, float flip_probability) {
     std::random_device rd;
     std::mt19937 gen(42); // Fixed seed for reproducibility
 
@@ -59,10 +54,7 @@ double BenchmarkScalar(
     for (size_t iter = 0; iter < n_iterations; ++iter) {
         // Flip in-place, creating a dependency chain
         skmeans::ScalarUtilsComputer<skmeans::Quantization::f32>::FlipSign(
-            buffer,
-            buffer,
-            masks,
-            N_DIMENSIONS
+            buffer, buffer, masks, N_DIMENSIONS
         );
         // Accumulate checksum to prevent optimization
         const uint32_t* buffer_bits = reinterpret_cast<const uint32_t*>(buffer);
@@ -101,10 +93,7 @@ double BenchmarkSIMD(
     for (size_t iter = 0; iter < n_iterations; ++iter) {
         // Flip in-place, creating a dependency chain
         skmeans::UtilsComputer<skmeans::Quantization::f32>::FlipSign(
-            buffer,
-            buffer,
-            masks,
-            N_DIMENSIONS
+            buffer, buffer, masks, N_DIMENSIONS
         );
         // Accumulate checksum to prevent optimization
         const uint32_t* buffer_bits = reinterpret_cast<const uint32_t*>(buffer);
@@ -130,18 +119,12 @@ bool VerifyCorrectness(const float* data, const uint32_t* masks) {
 
     // Run scalar version
     skmeans::ScalarUtilsComputer<skmeans::Quantization::f32>::FlipSign(
-        data,
-        scalar_output,
-        masks,
-        N_DIMENSIONS
+        data, scalar_output, masks, N_DIMENSIONS
     );
 
     // Run SIMD version
     skmeans::UtilsComputer<skmeans::Quantization::f32>::FlipSign(
-        data,
-        simd_output,
-        masks,
-        N_DIMENSIONS
+        data, simd_output, masks, N_DIMENSIONS
     );
 
     // Compare outputs (bitwise comparison for exact match)
@@ -150,11 +133,10 @@ bool VerifyCorrectness(const float* data, const uint32_t* masks) {
         uint32_t simd_bits = *reinterpret_cast<const uint32_t*>(&simd_output[i]);
 
         if (scalar_bits != simd_bits) {
-            std::cerr << "ERROR: Output mismatch at index " << i
-                      << "! Scalar: " << scalar_output[i]
+            std::cerr << "ERROR: Output mismatch at index " << i << "! Scalar: " << scalar_output[i]
                       << " (0x" << std::hex << scalar_bits << ")"
-                      << ", SIMD: " << simd_output[i]
-                      << " (0x" << simd_bits << ")" << std::dec << std::endl;
+                      << ", SIMD: " << simd_output[i] << " (0x" << simd_bits << ")" << std::dec
+                      << std::endl;
             return false;
         }
     }
@@ -231,15 +213,16 @@ int main() {
     std::cout << "Speedup: " << std::setprecision(2) << speedup << "x" << std::endl;
 
     if (speedup > 1.0) {
-        std::cout << "SIMD is " << std::setprecision(1) << ((speedup - 1.0) * 100.0)
-                  << "% faster" << std::endl;
+        std::cout << "SIMD is " << std::setprecision(1) << ((speedup - 1.0) * 100.0) << "% faster"
+                  << std::endl;
     } else {
         std::cout << "Scalar is " << std::setprecision(1) << ((1.0 / speedup - 1.0) * 100.0)
                   << "% faster" << std::endl;
     }
 
     // Calculate throughput
-    double scalar_gb_per_sec = (N_DIMENSIONS * sizeof(float) * 2) / scalar_time_ns; // 2 for read+write
+    double scalar_gb_per_sec =
+        (N_DIMENSIONS * sizeof(float) * 2) / scalar_time_ns; // 2 for read+write
     double simd_gb_per_sec = (N_DIMENSIONS * sizeof(float) * 2) / simd_time_ns;
 
     std::cout << std::endl;

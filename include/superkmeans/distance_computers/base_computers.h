@@ -41,7 +41,6 @@ class DistanceComputer<DistanceFunction::l2, Quantization::u8> {
     constexpr static auto Horizontal = computer::Horizontal;
 };
 
-
 template <Quantization q>
 class UtilsComputer {
     using computer = SIMDUtilsComputer<q>;

@@ -1,19 +1,19 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
 #define EIGEN_USE_THREADS
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <omp.h>
 #include <random>
 #include <vector>
 
+#include "bench_utils.h"
 #include "superkmeans/common.h"
 #include "superkmeans/nanobench.h"
-#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/adsampling.h"
+#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/utils.h"
 #include "superkmeans/superkmeans.h"
-#include "bench_utils.h"
 
 int main(int argc, char* argv[]) {
     // Experiment configuration
@@ -83,7 +83,8 @@ int main(int argc, char* argv[]) {
     std::vector<bool> sample_queries_values = {true, false};
     for (bool sample_queries : sample_queries_values) {
         std::cout << "\n##########################################" << std::endl;
-        std::cout << "# Running with sample_queries = " << (sample_queries ? "true" : "false") << std::endl;
+        std::cout << "# Running with sample_queries = " << (sample_queries ? "true" : "false")
+                  << std::endl;
         std::cout << "##########################################" << std::endl;
 
         // Loop over different recall_tol values
@@ -107,14 +108,16 @@ int main(int argc, char* argv[]) {
             config.sampling_fraction = sampling_fraction;
             config.use_blas_only = false;
 
-            auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-                n_clusters, d, config
-            );
+            auto kmeans_state =
+                skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                    n_clusters, d, config
+                );
 
             // Time the training
             bench_utils::TicToc timer;
             timer.Tic();
-            std::vector<float> centroids = kmeans_state.Train(data.data(), n, queries.data(), n_queries);
+            std::vector<float> centroids =
+                kmeans_state.Train(data.data(), n, queries.data(), n_queries);
             timer.Toc();
             double construction_time_ms = timer.GetMilliseconds();
 
@@ -123,7 +126,8 @@ int main(int argc, char* argv[]) {
             double final_objective = kmeans_state.iteration_stats.back().objective;
 
             std::cout << "\nTraining completed in " << construction_time_ms << " ms" << std::endl;
-            std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters << ")" << std::endl;
+            std::cout << "Actual iterations: " << actual_iterations << " (requested: " << n_iters
+                      << ")" << std::endl;
             std::cout << "Final objective: " << final_objective << std::endl;
 
             // Compute recall if ground truth file exists
@@ -139,23 +143,35 @@ int main(int argc, char* argv[]) {
 
                 // Load ground truth
                 auto gt_map = bench_utils::parse_ground_truth_json(gt_filename);
-                std::cout << "Using " << n_queries << " queries (loaded " << gt_map.size() << " from ground truth)" << std::endl;
+                std::cout << "Using " << n_queries << " queries (loaded " << gt_map.size()
+                          << " from ground truth)" << std::endl;
 
                 // Assign each data point to its nearest centroid using SuperKMeans::Assign()
-                auto assignments = kmeans_state.Assign(
-                    data.data(), centroids.data(), n, n_clusters
-                );
+                auto assignments =
+                    kmeans_state.Assign(data.data(), centroids.data(), n, n_clusters);
 
                 // Compute recall for both KNN values
                 auto results_knn_10 = bench_utils::compute_recall(
-                    gt_map, assignments, queries.data(), centroids.data(),
-                    n_queries, n_clusters, d, 10
+                    gt_map,
+                    assignments,
+                    queries.data(),
+                    centroids.data(),
+                    n_queries,
+                    n_clusters,
+                    d,
+                    10
                 );
                 bench_utils::print_recall_results(results_knn_10, 10);
 
                 auto results_knn_100 = bench_utils::compute_recall(
-                    gt_map, assignments, queries.data(), centroids.data(),
-                    n_queries, n_clusters, d, 100
+                    gt_map,
+                    assignments,
+                    queries.data(),
+                    centroids.data(),
+                    n_queries,
+                    n_clusters,
+                    d,
+                    100
                 );
                 bench_utils::print_recall_results(results_knn_100, 100);
 
@@ -178,10 +194,20 @@ int main(int argc, char* argv[]) {
 
                 // Write results to CSV
                 bench_utils::write_results_to_csv(
-                    experiment_name, algorithm, dataset, n_iters, actual_iterations,
-                    static_cast<int>(d), n, static_cast<int>(n_clusters), construction_time_ms,
-                    static_cast<int>(THREADS), final_objective, config_map,
-                    results_knn_10, results_knn_100
+                    experiment_name,
+                    algorithm,
+                    dataset,
+                    n_iters,
+                    actual_iterations,
+                    static_cast<int>(d),
+                    n,
+                    static_cast<int>(n_clusters),
+                    construction_time_ms,
+                    static_cast<int>(THREADS),
+                    final_objective,
+                    config_map,
+                    results_knn_10,
+                    results_knn_100
                 );
             } else {
                 if (!gt_file.good()) {
@@ -190,8 +216,9 @@ int main(int argc, char* argv[]) {
                 if (!queries_file_check.good()) {
                     std::cout << "Queries file not found: " << filename_queries << std::endl;
                 }
-                std::cout << "Skipping CSV output (recall computation requires ground truth)" << std::endl;
+                std::cout << "Skipping CSV output (recall computation requires ground truth)"
+                          << std::endl;
             }
-        }  // End recall_tol loop
-    }  // End sample_queries loop
+        } // End recall_tol loop
+    } // End sample_queries loop
 }

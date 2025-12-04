@@ -2,9 +2,11 @@ import sklearn.datasets
 import numpy as np
 import os
 import h5py
+
 np.random.seed(42)
 
 RAW_DATA = '../../PDX/benchmarks/datasets/downloaded/'
+
 
 def read_hdf5_data(dataset):
     hdf5_file_name = os.path.join(RAW_DATA, dataset + ".hdf5")

@@ -1,14 +1,14 @@
+#include <algorithm>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <vector>
-#include <algorithm>
-#include <iomanip>
 
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/distance_computers/scalar_computers.h"
-#include "superkmeans/pdx/utils.h"
 #include "superkmeans/nanobench.h"
+#include "superkmeans/pdx/utils.h"
 
 constexpr size_t N_VECTORS = 1024;
 constexpr size_t N_ITERATIONS = 10000;
@@ -64,11 +64,7 @@ double BenchmarkScalar(
 
     for (size_t iter = 0; iter < n_iterations; ++iter) {
         skmeans::ScalarUtilsComputer<skmeans::Quantization::f32>::InitPositionsArray(
-            N_VECTORS,
-            n_vectors_not_pruned,
-            pruning_positions,
-            pruning_threshold,
-            pruning_distances
+            N_VECTORS, n_vectors_not_pruned, pruning_positions, pruning_threshold, pruning_distances
         );
         total_count += n_vectors_not_pruned;
     }
@@ -103,11 +99,7 @@ double BenchmarkSIMD(
 
     for (size_t iter = 0; iter < n_iterations; ++iter) {
         skmeans::UtilsComputer<skmeans::Quantization::f32>::InitPositionsArray(
-            N_VECTORS,
-            n_vectors_not_pruned,
-            pruning_positions,
-            pruning_threshold,
-            pruning_distances
+            N_VECTORS, n_vectors_not_pruned, pruning_positions, pruning_threshold, pruning_distances
         );
         total_count += n_vectors_not_pruned;
     }
@@ -134,26 +126,18 @@ bool VerifyCorrectness(const float* pruning_distances, float pruning_threshold) 
 
     // Run scalar version
     skmeans::ScalarUtilsComputer<skmeans::Quantization::f32>::InitPositionsArray(
-        N_VECTORS,
-        scalar_count,
-        scalar_positions,
-        pruning_threshold,
-        pruning_distances
+        N_VECTORS, scalar_count, scalar_positions, pruning_threshold, pruning_distances
     );
 
     // Run SIMD version
     skmeans::UtilsComputer<skmeans::Quantization::f32>::InitPositionsArray(
-        N_VECTORS,
-        simd_count,
-        simd_positions,
-        pruning_threshold,
-        pruning_distances
+        N_VECTORS, simd_count, simd_positions, pruning_threshold, pruning_distances
     );
 
     // Compare counts
     if (scalar_count != simd_count) {
-        std::cerr << "ERROR: Count mismatch! Scalar: " << scalar_count
-                  << ", SIMD: " << simd_count << std::endl;
+        std::cerr << "ERROR: Count mismatch! Scalar: " << scalar_count << ", SIMD: " << simd_count
+                  << std::endl;
         return false;
     }
 
@@ -161,8 +145,8 @@ bool VerifyCorrectness(const float* pruning_distances, float pruning_threshold) 
     for (size_t i = 0; i < scalar_count; ++i) {
         if (scalar_positions[i] != simd_positions[i]) {
             std::cerr << "ERROR: Position mismatch at index " << i
-                      << "! Scalar: " << scalar_positions[i]
-                      << ", SIMD: " << simd_positions[i] << std::endl;
+                      << "! Scalar: " << scalar_positions[i] << ", SIMD: " << simd_positions[i]
+                      << std::endl;
             return false;
         }
     }
@@ -224,12 +208,10 @@ int main() {
     uint32_t simd_first_pos = 0;
 
     double scalar_time_ns = BenchmarkScalar(
-        pruning_distances, pruning_threshold, N_ITERATIONS,
-        scalar_total_count, scalar_first_pos
+        pruning_distances, pruning_threshold, N_ITERATIONS, scalar_total_count, scalar_first_pos
     );
     double simd_time_ns = BenchmarkSIMD(
-        pruning_distances, pruning_threshold, N_ITERATIONS,
-        simd_total_count, simd_first_pos
+        pruning_distances, pruning_threshold, N_ITERATIONS, simd_total_count, simd_first_pos
     );
 
     // Prevent compiler from optimizing away the benchmarked code
@@ -250,8 +232,8 @@ int main() {
     std::cout << "Speedup: " << std::setprecision(2) << speedup << "x" << std::endl;
 
     if (speedup > 1.0) {
-        std::cout << "SIMD is " << std::setprecision(1) << ((speedup - 1.0) * 100.0)
-                  << "% faster" << std::endl;
+        std::cout << "SIMD is " << std::setprecision(1) << ((speedup - 1.0) * 100.0) << "% faster"
+                  << std::endl;
     } else {
         std::cout << "Scalar is " << std::setprecision(1) << ((1.0 / speedup - 1.0) * 100.0)
                   << "% faster" << std::endl;
@@ -259,8 +241,8 @@ int main() {
 
     // Sanity check: both should have processed the same total count
     std::cout << std::endl;
-    std::cout << "Avg elements passing threshold: "
-              << (scalar_total_count / N_ITERATIONS) << std::endl;
+    std::cout << "Avg elements passing threshold: " << (scalar_total_count / N_ITERATIONS)
+              << std::endl;
 
     return 0;
 }

@@ -263,7 +263,6 @@ class SIMDComputer<skmeans::DistanceFunction::l2, Quantization::f32> {
     };
 };
 
-
 template <Quantization q>
 class SIMDUtilsComputer {};
 
@@ -279,12 +278,7 @@ class SIMDUtilsComputer<Quantization::f32> {
      * @param masks Bitmask array (0x80000000 to flip, 0 to keep)
      * @param d Number of dimensions
      */
-    static void FlipSign(
-        const data_t* data,
-        data_t* out,
-        const uint32_t* masks,
-        size_t d
-    ) {
+    static void FlipSign(const data_t* data, data_t* out, const uint32_t* masks, size_t d) {
         size_t j = 0;
         // AVX-512: process 16 floats at a time
         for (; j + 16 <= d; j += 16) {
@@ -339,10 +333,7 @@ class SIMDUtilsComputer<Quantization::f32> {
 
         // Process 16 elements at a time
         for (; vector_idx < n_vectors_simd; vector_idx += k_simd_width) {
-            // Load 16 distances
             __m512 distances = _mm512_loadu_ps(pruning_distances + vector_idx);
-
-            // Compare: dist < threshold, produces a mask
             __mmask16 cmp_mask = _mm512_cmp_ps_mask(distances, threshold_vec, _CMP_LT_OQ);
 
             // Branch hint: likely that no elements passed (98% of the time)
@@ -356,18 +347,13 @@ class SIMDUtilsComputer<Quantization::f32> {
 
                 // Compress and store indices where mask is true
                 _mm512_mask_compressstoreu_epi32(
-                    pruning_positions + n_vectors_not_pruned,
-                    cmp_mask,
-                    indices
+                    pruning_positions + n_vectors_not_pruned, cmp_mask, indices
                 );
 
-                // Update count by popcount of mask
                 n_vectors_not_pruned += _mm_popcnt_u32(cmp_mask);
             }
-            // else: all comparisons failed, skip these 16 elements
         }
-
-        // Handle remaining elements (< 16)
+        // Tail
         for (; vector_idx < n_vectors; ++vector_idx) {
             pruning_positions[n_vectors_not_pruned] = vector_idx;
             n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;

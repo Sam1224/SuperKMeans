@@ -5,8 +5,8 @@
 #define BENCHMARK_TIME = true
 #endif
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <omp.h>
 #include <random>
 #include <vector>
@@ -15,13 +15,13 @@
 #include <faiss/IndexFlat.h>
 #include <faiss/utils/utils.h>
 
+#include "bench_utils.h"
 #include "superkmeans/common.h"
 #include "superkmeans/nanobench.h"
-#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/adsampling.h"
+#include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/utils.h"
 #include "superkmeans/superkmeans.h"
-#include "bench_utils.h"
 
 int main(int argc, char* argv[]) {
     // Choose dataset by name
@@ -30,14 +30,16 @@ int main(int argc, char* argv[]) {
     auto it = bench_utils::DATASET_PARAMS.find(dataset);
     if (it == bench_utils::DATASET_PARAMS.end()) {
         std::cerr << "Unknown dataset '" << dataset << "'\n";
-        std::cerr << "Known datasets: mxbai, openai, wiki, arxiv, sift, fmnist, glove200, glove100, glove50\n";
+        std::cerr << "Known datasets: mxbai, openai, wiki, arxiv, sift, fmnist, glove200, "
+                     "glove100, glove50\n";
         return 1;
     }
 
     const size_t n = it->second.first;
     const size_t n_queries = 1000;
     const size_t d = it->second.second;
-    const size_t n_clusters = std::max<size_t>(1u, static_cast<size_t>(std::sqrt(static_cast<double>(n)) * 4.0));
+    const size_t n_clusters =
+        std::max<size_t>(1u, static_cast<size_t>(std::sqrt(static_cast<double>(n)) * 4.0));
     int n_iters = 25;
     float sampling_fraction = 1.0;
 
@@ -54,7 +56,8 @@ int main(int argc, char* argv[]) {
               << " sampling_fraction=" << sampling_fraction << "\n";
     std::cout << "FAISS compile options: " << faiss::get_compile_options() << std::endl;
     std::cout << "Eigen # threads: " << Eigen::nbThreads()
-              << " (note: it will always be 1 if BLAS is enabled)" << std::endl << std::endl;
+              << " (note: it will always be 1 if BLAS is enabled)" << std::endl
+              << std::endl;
 
     // Load data
     std::vector<skmeans::skmeans_value_t<skmeans::Quantization::f32>> data;
@@ -64,7 +67,8 @@ int main(int argc, char* argv[]) {
         data.resize(n * d);
         queries.resize(n_queries * d);
     } catch (const std::bad_alloc& e) {
-        std::cerr << "Failed to allocate data vector for n*d = " << (n * d) << ": " << e.what() << "\n";
+        std::cerr << "Failed to allocate data vector for n*d = " << (n * d) << ": " << e.what()
+                  << "\n";
         return 1;
     }
 
@@ -80,7 +84,8 @@ int main(int argc, char* argv[]) {
 
     std::ifstream file_queries(filename_queries, std::ios::binary);
     if (!file_queries) {
-        std::cerr << "Warning: Failed to open " << filename_queries << ", skipping query benchmarks" << std::endl;
+        std::cerr << "Warning: Failed to open " << filename_queries << ", skipping query benchmarks"
+                  << std::endl;
     } else {
         file_queries.read(reinterpret_cast<char*>(queries.data()), queries.size() * sizeof(float));
         file_queries.close();
@@ -91,7 +96,8 @@ int main(int argc, char* argv[]) {
 
     // Benchmark 1: Training with queries (recall computation) - SuperKMeans only
     if (file_queries) {
-        std::cout << "--- Benchmark: Training with Recall Computation (SuperKMeans only) ---" << std::endl;
+        std::cout << "--- Benchmark: Training with Recall Computation (SuperKMeans only) ---"
+                  << std::endl;
         skmeans::SuperKMeansConfig config;
         config.iters = n_iters;
         config.sampling_fraction = sampling_fraction;
@@ -103,16 +109,17 @@ int main(int argc, char* argv[]) {
         config.perform_assignments = false;
         config.early_termination = false;
 
-        ankerl::nanobench::Bench()
-            .epochs(1)
-            .epochIterations(1)
-            .run(dataset + "_SuperKMeans_WithQueries", [&]() {
-                auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-                    n_clusters, d, config
-                );
+        ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(
+            dataset + "_SuperKMeans_WithQueries",
+            [&]() {
+                auto kmeans_state =
+                    skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                        n_clusters, d, config
+                    );
                 auto centroids = kmeans_state.Train(data.data(), n, queries.data(), n_queries);
                 ankerl::nanobench::doNotOptimizeAway(centroids);
-            });
+            }
+        );
 
         std::cout << std::endl;
     }
@@ -132,16 +139,17 @@ int main(int argc, char* argv[]) {
         config.perform_assignments = false;
         config.early_termination = false;
 
-        ankerl::nanobench::Bench()
-            .epochs(1)
-            .epochIterations(1)
-            .run(dataset + "_SuperKMeans", [&]() {
-                auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
-                    n_clusters, d, config
-                );
+        ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(
+            dataset + "_SuperKMeans",
+            [&]() {
+                auto kmeans_state =
+                    skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+                        n_clusters, d, config
+                    );
                 auto centroids = kmeans_state.Train(data.data(), n);
                 ankerl::nanobench::doNotOptimizeAway(centroids);
-            });
+            }
+        );
 
         std::cout << std::endl;
 
@@ -152,15 +160,12 @@ int main(int argc, char* argv[]) {
         cp.verbose = false;
         cp.nredo = 1;
 
-        ankerl::nanobench::Bench()
-            .epochs(1)
-            .epochIterations(1)
-            .run(dataset + "_FAISS", [&]() {
-                faiss::Clustering clus(d, n_clusters, cp);
-                faiss::IndexFlatL2 index(d);
-                clus.train(n, data.data(), index);
-                ankerl::nanobench::doNotOptimizeAway(clus.centroids);
-            });
+        ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(dataset + "_FAISS", [&]() {
+            faiss::Clustering clus(d, n_clusters, cp);
+            faiss::IndexFlatL2 index(d);
+            clus.train(n, data.data(), index);
+            ankerl::nanobench::doNotOptimizeAway(clus.centroids);
+        });
 
         std::cout << std::endl;
     }
@@ -181,16 +186,14 @@ int main(int argc, char* argv[]) {
 
             std::string bench_name = dataset + "_Sampling_" + std::to_string(int(sf * 100)) + "pct";
 
-            ankerl::nanobench::Bench()
-                .epochs(1)
-                .epochIterations(1)
-                .run(bench_name, [&]() {
-                    auto kmeans_state = skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
+            ankerl::nanobench::Bench().epochs(1).epochIterations(1).run(bench_name, [&]() {
+                auto kmeans_state =
+                    skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
                         n_clusters, d, config
                     );
-                    auto centroids = kmeans_state.Train(data.data(), n);
-                    ankerl::nanobench::doNotOptimizeAway(centroids);
-                });
+                auto centroids = kmeans_state.Train(data.data(), n);
+                ankerl::nanobench::doNotOptimizeAway(centroids);
+            });
         }
 
         std::cout << std::endl;
