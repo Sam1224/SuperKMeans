@@ -184,6 +184,8 @@ class SuperKMeans {
         }
 
         std::vector<vector_value_t> data_samples_buffer;
+        // TODO(@lkuffo, crit): If I rotate the vectors, and then sample. 
+        //   I don't need to rotate the sampled vectors again.
         SampleVectors(data_p, data_samples_buffer, n, _n_samples);
         auto data_to_cluster = data_samples_buffer.data();
 
@@ -827,13 +829,19 @@ class SuperKMeans {
         {
             SKM_PROFILE_SCOPE("sampling");
             auto tmp_centroids_p = _horizontal_centroids.data();
-            // First `n` samples similar to FAISS'
+
+            // Random sampling without replacement
+            std::mt19937 rng(_config.seed);
+            std::vector<size_t> indices(_n_samples);
+            for (size_t i = 0; i < _n_samples; ++i) {
+                indices[i] = i;
+            }
+            std::shuffle(indices.begin(), indices.end(), rng);
+
             for (size_t i = 0; i < _n_clusters; i += 1) {
-                // TODO(@lkuffo, low): What if centroid scalar_t are not the same size of vector
-                // ones
                 memcpy(
                     (void*) tmp_centroids_p,
-                    (void*) (data + (i * _d)),
+                    (void*) (data + (indices[i] * _d)),
                     sizeof(centroid_value_t) * _d
                 );
                 tmp_centroids_p += _d;

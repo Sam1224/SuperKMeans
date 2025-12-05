@@ -67,7 +67,6 @@ static inline constexpr size_t VECTOR_CHUNK_SIZE = Y_BATCH_SIZE;
 static inline constexpr uint16_t PDX_VECTOR_SIZE = Y_BATCH_SIZE;
 static inline constexpr float CENTROID_PERTURBATION_EPS = 1.0f / 1024.0f;
 static inline constexpr float PRUNER_INITIAL_THRESHOLD = 1.5f;
-static inline constexpr float PRUNING_GROUP_DEVIATION_FACTOR = 0.25f;
 // Evaluating the pruning threshold is so fast that we can allow smaller fetching sizes
 // to avoid more data access. Super useful in architectures with low bandwidth at L3/DRAM like
 // Intel SPR

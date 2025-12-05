@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     const std::string algorithm = "superkmeans";
 
     // Choose dataset by name. You can also pass the dataset name as the first CLI argument.
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("mxbai");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("wiki");
 
     // Experiment name can be passed as second argument (default: "end_to_end")
     std::string experiment_name = (argc > 2) ? std::string(argv[2]) : std::string("end_to_end");
@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
     const size_t d = it->second.second;
     const size_t n_clusters =
         std::max<size_t>(1u, static_cast<size_t>(std::sqrt(static_cast<double>(n)) * 4.0));
-    int n_iters = 5; // bench_utils::MAX_ITERS;
+    int n_iters = bench_utils::MAX_ITERS;
     float sampling_fraction = 1.0;
     std::string filename = bench_utils::get_data_path(dataset);
     std::string filename_queries = bench_utils::get_query_path(dataset);
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 
     skmeans::SuperKMeansConfig config;
     config.iters = n_iters;
-    config.verbose = true; // ENABLED VERBOSE MODE
+    config.verbose = true;
     config.n_threads = THREADS;
     config.objective_k = 10;
     config.ann_explore_fraction = 0.01f;
@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
     );
     bench_utils::TicToc timer;
     timer.Tic();
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 0; i++) {
         auto _tmp_state =
             skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
                 n_clusters, d, config

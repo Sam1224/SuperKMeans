@@ -87,7 +87,8 @@ const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS 
     {"glove100", {1183514, 100}},
     {"glove50", {1183514, 50}},
     {"gist", {1000000, 960}},
-    {"contriever", {990000, 768}}
+    {"contriever", {990000, 768}},
+    {"clip", {1281167, 512}}
 };
 
 // Standard exploration fractions for recall computation

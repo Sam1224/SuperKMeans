@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     // Experiment configuration
     const std::string algorithm = "faiss";
 
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("openai");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("wiki");
 
     // Experiment name can be passed as second argument (default: "end_to_end")
     std::string experiment_name = (argc > 2) ? std::string(argv[2]) : std::string("end_to_end");
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     const int d = it->second.second;
     const int n_clusters =
         std::max<int>(1u, static_cast<int>(std::sqrt(static_cast<double>(n)) * 4.0));
-    int n_iters = 5; // bench_utils::MAX_ITERS;
+    int n_iters = bench_utils::MAX_ITERS;
     const size_t THREADS = omp_get_max_threads();
     omp_set_num_threads(THREADS);
     std::string filename = bench_utils::get_data_path(dataset);

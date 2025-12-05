@@ -365,8 +365,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                         // Note that this will take the KNN from the previous batch loop
                         const auto prev_assignment = out_knn[i_idx];
                         distance_t dist_to_prev_centroid;
-                        if (j ==
-                            0) { // After this we always have the right distance in out_distances
+                        if (j == 0) { // After this out_distances always have the right distance
                             dist_to_prev_centroid =
                                 DistanceComputer<DistanceFunction::l2, Quantization::f32>::
                                     Horizontal(y + (prev_assignment * d), data_p, d);
