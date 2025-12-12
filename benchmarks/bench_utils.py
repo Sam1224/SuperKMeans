@@ -62,7 +62,8 @@ DATASET_PARAMS = {
     "glove50": (1_183_514, 50),
     "gist": (1_000_000, 960),
     "contriever": (990_000, 768),
-    "clip": (1_281_167, 512)
+    "clip": (1_281_167, 512),
+    "cohere": (35_166_920, 768)
 }
 
 # Standard exploration fractions for recall computation

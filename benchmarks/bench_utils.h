@@ -89,7 +89,7 @@ const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS 
     {"gist", {1000000, 960}},
     {"contriever", {990000, 768}},
     {"clip", {1281167, 512}},
-    {"cohere", {999000, 768}}
+    {"cohere", {35166920, 768}}
 };
 
 // Standard exploration fractions for recall computation
