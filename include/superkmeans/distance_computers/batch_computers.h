@@ -10,6 +10,9 @@
 #include "superkmeans/profiler.h"
 #include <Eigen/Eigen/Dense>
 
+// Eigen already declares sgemm_, so we don't need to redeclare it
+// Use Eigen's BLAS declarations from Eigen/src/Core/util/BlasUtil.h
+
 namespace skmeans {
 
 template <DistanceFunction alpha, Quantization q>
@@ -55,36 +58,51 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         const size_t partial_d,
         float* SKM_RESTRICT all_distances_buf
     ) {
-        Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
-        Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
-        Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
+        // Direct BLAS sgemm implementation
+        // Compute: distances = x * y^T (all row-major)
+        // where x is batch_n_x × d, y is batch_n_y × d, distances is batch_n_x × batch_n_y
+        //
+        // For row-major matrices with column-major BLAS (Fortran interface):
+        // To compute C = A * B^T, we call: sgemm('T', 'N', n, m, k, alpha, B, ldb, A, lda, beta, C, ldc)
+        // This is the standard row-major to column-major translation
 
-        if (partial_d > 0 && partial_d < d) {
-            // Partial multiplication: use only first partial_d dimensions
-            distances_matrix.noalias() =
-                x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
-        } else {
-            // Full multiplication: use all dimensions
-            distances_matrix.noalias() = x_matrix * y_matrix.transpose();
-        }
-    }
+        const char trans_a = 'T';  // Transpose flag for first operand
+        const char trans_b = 'N';  // No transpose for second operand
 
-    static void BlasMatrixMultiplicationColumnMajor(
-        const data_t* SKM_RESTRICT batch_x_p,
-        const data_t* SKM_RESTRICT batch_y_p,
-        const size_t batch_n_x,
-        const size_t batch_n_y,
-        const size_t d,
-        const size_t partial_d,
-        float* SKM_RESTRICT all_distances_buf
-    ) {
-        Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
-        Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, partial_d);
-        Eigen::Map<const MatrixR> y_matrix(batch_y_p, partial_d, batch_n_y);
+        int m = static_cast<int>(batch_n_y);  // Rows of result (swapped for row-major)
+        int n = static_cast<int>(batch_n_x);  // Cols of result (swapped for row-major)
+        int k = static_cast<int>(partial_d > 0 && partial_d < d ? partial_d : d);  // Inner dimension
 
-        if (partial_d > 0 && partial_d < d) {
-            distances_matrix.noalias() = x_matrix * y_matrix;
-        }
+        float alpha = 1.0f;
+        float beta = 0.0f;
+
+        int lda = static_cast<int>(d);  // Leading dimension of y (row stride in row-major)
+        int ldb = static_cast<int>(d);  // Leading dimension of x (row stride in row-major)
+        int ldc = static_cast<int>(batch_n_y);  // Leading dimension of distances
+
+        sgemm_(
+            &trans_a, &trans_b,
+            &m, &n, &k,
+            &alpha,
+            batch_y_p, &lda,  // y is first operand (transposed)
+            batch_x_p, &ldb,  // x is second operand (not transposed)
+            &beta,
+            all_distances_buf, &ldc
+        );
+
+        // Old Eigen implementation (commented out):
+        // Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
+        // Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
+        // Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
+        //
+        // if (partial_d > 0 && partial_d < d) {
+        //     // Partial multiplication: use only first partial_d dimensions
+        //     distances_matrix.noalias() =
+        //         x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
+        // } else {
+        //     // Full multiplication: use all dimensions
+        //     distances_matrix.noalias() = x_matrix * y_matrix.transpose();
+        // }
     }
 
   public:
@@ -319,11 +337,6 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 batch_n_x = n_x - i;
             }
             MatrixR materialize_x_left_cols;
-            {
-                SKM_PROFILE_SCOPE("search/leftCols");
-                auto x_matrix_p = Eigen::Map<const MatrixR>(batch_x_p, batch_n_x, d);
-                materialize_x_left_cols = x_matrix_p.leftCols(partial_d).eval();
-            }
             for (size_t j = 0; j < n_y; j += Y_BATCH_SIZE) {
                 auto batch_n_y = Y_BATCH_SIZE;
                 auto batch_y_p = y + (j * d);
@@ -332,14 +345,9 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
                 {
                     SKM_PROFILE_SCOPE("search/blas");
-                    // BlasMatrixMultiplication(
-                    //     batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf
-                    // );
-                    assert(partial_d <= pdx_centroids.searcher->pdx_data.num_vertical_dimensions);
-                    auto batch_y_column_p =
-                        pdx_centroids.searcher->pdx_data.clusters[j / VECTOR_CHUNK_SIZE].data;
-                    BlasMatrixMultiplicationColumnMajor(materialize_x_left_cols.data(),
-                        batch_y_column_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf);
+                    BlasMatrixMultiplication(
+                        batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf
+                    );
                 }
                 Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
                 {

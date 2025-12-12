@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # Experiment configuration
     algorithm = "scikit"
 
-    dataset = sys.argv[1] if len(sys.argv) > 1 else "glove200"
+    dataset = sys.argv[1] if len(sys.argv) > 1 else "openai"
 
     # Experiment name can be passed as second argument (default: "end_to_end")
     experiment_name = sys.argv[2] if len(sys.argv) > 2 else "end_to_end"
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         )
     num_vectors, num_dimensions = DATASET_PARAMS[dataset]
     num_centroids = max(1, int(math.sqrt(num_vectors) * 4))
-    n_iter = 10  # MAX_ITERS
+    n_iter = MAX_ITERS
     threads = threads
 
     print(f"=== Running algorithm: {algorithm} ===")
