@@ -6,6 +6,9 @@ np.random.seed(42)
 
 RAW_DATA = '../../PDX/benchmarks/datasets/downloaded/'
 
+def l2_normalize(x, eps=1e-12):
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    return x / np.maximum(norms, eps)
 
 def read_hdf5_data(dataset):
     hdf5_file_name = os.path.join(RAW_DATA, dataset + ".hdf5")
@@ -25,12 +28,12 @@ if __name__ == "__main__":
     #
     # data.tofile("./data/data_random.bin")
 
-    # train, test = read_hdf5_data("glove-200-angular")
-    # train = train.astype(np.float32)
-    # train.tofile("./data/data_glove200.bin")
-    # test = test.astype(np.float32)
-    # test.tofile("./data/data_glove200_test.bin")
-    # print('glove200', len(train), len(test), len(train[0]))
+    train, test = read_hdf5_data("glove-200-angular")
+    train = l2_normalize(train.astype(np.float32))
+    train.tofile("./data/data_glove200.bin")
+    test = l2_normalize(test.astype(np.float32))
+    test.tofile("./data/data_glove200_test.bin")
+    print('glove200', len(train), len(test), len(train[0]))
 
     # train, test = read_hdf5_data("glove-100-angular")
     # train = train.astype(np.float32)
@@ -46,12 +49,40 @@ if __name__ == "__main__":
     # test.tofile("./data/data_glove50_test.bin")
     # print('glove50', len(train), len(test), len(train[0]))
 
-    train, test = read_hdf5_data("imagenet-clip-512-normalized")
+    # train, test = read_hdf5_data("imagenet-clip-512-normalized")
+    # train = train.astype(np.float32)
+    # test = test.astype(np.float32)
+    # train.tofile("./data/data_clip.bin")
+    # test.tofile("./data/data_clip_test.bin")
+    # print('clip', len(train), len(test), len(train[0]))
+
+    train, test = read_hdf5_data("yahoo-minilm-384-normalized")
     train = train.astype(np.float32)
     test = test.astype(np.float32)
-    train.tofile("./data/data_clip.bin")
-    test.tofile("./data/data_clip_test.bin")
-    print('clip', len(train), len(test), len(train[0]))
+    train.tofile("./data/data_yahoo.bin")
+    test.tofile("./data/data_yahoo_test.bin")
+    print('yahoo', len(train), len(test), len(train[0]))
+
+    train, test = read_hdf5_data("llama-128-ip")
+    train = l2_normalize(train.astype(np.float32))
+    test = l2_normalize(test.astype(np.float32))
+    train.tofile("./data/data_llama.bin")
+    test.tofile("./data/data_llama_test.bin")
+    print('llama', len(train), len(test), len(train[0]))
+
+    train, test = read_hdf5_data("yi-128-ip")
+    train = l2_normalize(train.astype(np.float32))
+    test = l2_normalize(test.astype(np.float32))
+    train.tofile("./data/data_yi.bin")
+    test.tofile("./data/data_yi_test.bin")
+    print('yi', len(train), len(test), len(train[0]))
+
+    train, test = read_hdf5_data("yandex-200-cosine")
+    train = l2_normalize(train.astype(np.float32))
+    test = l2_normalize(test.astype(np.float32))
+    train.tofile("./data/data_yandex.bin")
+    test.tofile("./data/data_yandex_test.bin")
+    print('yandex', len(train), len(test), len(train[0]))
 
     # train, test = read_hdf5_data("agnews-mxbai-1024-euclidean")
     # train = train.astype(np.float32)

@@ -131,7 +131,11 @@ class PDXLayout {
      */
     static inline PDXDimensionSplit GetDimensionSplit(const size_t d) {
         // We compute the split of vertical and horizontal dimensions
-        size_t horizontal_d = static_cast<uint32_t>(d * PROPORTION_HORIZONTAL_DIM);
+        auto local_proportion_horizontal_dim = PROPORTION_HORIZONTAL_DIM;
+        if (d <= 256) {
+            local_proportion_horizontal_dim = 0.25;
+        }
+        size_t horizontal_d = static_cast<uint32_t>(d * local_proportion_horizontal_dim);
         size_t vertical_d = d - horizontal_d;
         if (horizontal_d % H_DIM_SIZE > 0) {
             horizontal_d = std::floor((1.0 * horizontal_d / H_DIM_SIZE) + 0.5) * H_DIM_SIZE;

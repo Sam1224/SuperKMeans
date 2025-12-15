@@ -41,6 +41,7 @@ struct SuperKMeansConfig {
     bool unrotate_centroids = true;   ///< Whether to unrotate centroids before returning
     bool perform_assignments = false; ///< Whether to perform final assignment pass
     bool verbose = false;             ///< Whether to print progress information
+    bool angular = false;
 };
 
 /**
@@ -163,7 +164,7 @@ class SuperKMeans {
         //! object
         _vertical_d = PDXLayout<q, alpha>::GetDimensionSplit(_d).vertical_d;
         // Set initial_partial_d dynamically as half of vertical_d
-        _initial_partial_d = std::max<uint32_t>(8, _vertical_d / 2);
+        _initial_partial_d = std::max<uint32_t>(MIN_PARTIAL_D, _vertical_d / 2);
         // Ensure initial_partial_d doesn't exceed vertical_d to avoid double-counting dimensions
         // when BLAS computes more dimensions than the vertical block contains
         if (_initial_partial_d > _vertical_d) {
@@ -243,9 +244,6 @@ class SuperKMeans {
         ConsolidateCentroids();
         ComputeCost();
         ComputeShift();
-        if (alpha == DistanceFunction::dp) {
-            PostprocessCentroids();
-        }
         if (n_queries) {
             _recall = ComputeRecall(rotated_queries.data(), n_queries);
         }
@@ -297,9 +295,6 @@ class SuperKMeans {
                 ConsolidateCentroids();
                 ComputeCost();
                 ComputeShift();
-                if (alpha == DistanceFunction::dp) {
-                    PostprocessCentroids();
-                }
                 if (n_queries) {
                     // Update centroid norms to match the NEW centroids (after ConsolidateCentroids)
                     GetL2NormsRowMajor(
@@ -381,9 +376,6 @@ class SuperKMeans {
             ConsolidateCentroids();
             ComputeCost();
             ComputeShift();
-            if (alpha == DistanceFunction::dp) {
-                PostprocessCentroids();
-            }
             if (n_queries) {
                 // Update centroid norms with FULL norms for recall computation
                 // (PDX uses partial norms for distance computation, but recall needs full norms)
@@ -687,6 +679,12 @@ class SuperKMeans {
             SplitClusters();
         }
         {
+            SKM_PROFILE_SCOPE("consolidate/normalize");
+            if (_config.angular) {
+                PostprocessCentroids();
+            }
+        }
+        {
             SKM_PROFILE_SCOPE("consolidate/pdxify");
             //! This updates the object within the pdx_layout wrapper
             PDXLayout<q, alpha>::template PDXify<false>(
@@ -947,10 +945,6 @@ class SuperKMeans {
         size_t n_y,
         bool& partial_d_changed
     ) {
-        constexpr float MIN_NOT_PRUNED_PCT = 0.03f; // 3% not pruned = 97% pruned
-        constexpr float MAX_NOT_PRUNED_PCT = 0.10f; // 10% not pruned = 90% pruned
-        constexpr float ADJUSTMENT_FACTOR = 0.10f;  // 10% adjustment
-        constexpr uint32_t MIN_PARTIAL_D = 8;
 
         // Calculate average not-pruned percentage from the buffer
         float avg_not_pruned_pct = 0.0f;
@@ -964,7 +958,8 @@ class SuperKMeans {
         if (avg_not_pruned_pct > MAX_NOT_PRUNED_PCT) {
             // Too many vectors not pruned (< MAX_NOT_PRUNED_PCT pruned), need more BLAS dimensions
             // Increase _initial_partial_d by ADJUSTMENT_FACTOR
-            uint32_t increase = static_cast<uint32_t>(_initial_partial_d * ADJUSTMENT_FACTOR);
+            // When we increase we have to be more aggresive
+            uint32_t increase = static_cast<uint32_t>(_initial_partial_d * ADJUSTMENT_FACTOR * 2);
             _initial_partial_d = std::min(_initial_partial_d + std::max(increase, 1u), _vertical_d);
         } else if (avg_not_pruned_pct < MIN_NOT_PRUNED_PCT) {
             // Too few vectors not pruned (> MIN_NOT_PRUNED_PCT pruned), can reduce BLAS dimensions
@@ -1078,9 +1073,9 @@ class SuperKMeans {
             for (size_t j = 0; j < _d; ++j) {
                 sum += horizontal_centroids_p[i * _d + j] * horizontal_centroids_p[i * _d + j];
             }
-            float norm = std::sqrt(sum);
+            float norm = 1.0f / std::sqrt(sum);
             for (size_t j = 0; j < _d; ++j) {
-                horizontal_centroids_p[i * _d + j] = horizontal_centroids_p[i * _d + j] / norm;
+                horizontal_centroids_p[i * _d + j] *= norm;
             }
         }
     }

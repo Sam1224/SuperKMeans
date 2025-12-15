@@ -60,11 +60,18 @@ namespace skmeans {
 static inline constexpr float PROPORTION_HORIZONTAL_DIM = 0.75;
 static inline constexpr size_t D_THRESHOLD_FOR_DCT_ROTATION = 512;
 static inline constexpr size_t H_DIM_SIZE = 64;
+
+static inline constexpr uint32_t MIN_PARTIAL_D = 32;
+static inline constexpr float MIN_NOT_PRUNED_PCT = 0.03f; // 3% not pruned = 97% pruned
+static inline constexpr float MAX_NOT_PRUNED_PCT = 0.05f; // 5% not pruned = 95% pruned
+static inline constexpr float ADJUSTMENT_FACTOR = 0.10f;  // 10% adjustment
+
 static inline constexpr size_t X_BATCH_SIZE = 4096;
 static inline constexpr size_t Y_BATCH_SIZE = 1024;
 // Note: VECTOR_CHUNK_SIZE and PDX_VECTOR_SIZE are aliases for Y_BATCH_SIZE
 static inline constexpr size_t VECTOR_CHUNK_SIZE = Y_BATCH_SIZE;
 static inline constexpr uint16_t PDX_VECTOR_SIZE = Y_BATCH_SIZE;
+
 static inline constexpr float CENTROID_PERTURBATION_EPS = 1.0f / 1024.0f;
 static inline constexpr float PRUNER_INITIAL_THRESHOLD = 1.5f;
 // Evaluating the pruning threshold is so fast that we can allow smaller fetching sizes
