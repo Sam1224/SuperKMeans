@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Adjustment factor values to test
-    std::vector<float> adjustment_factors = {0.10f, 0.15f, 0.20f};
+    std::vector<float> adjustment_factors = {0.10f, 0.15f, 0.20f, 0.25f, 0.30f};
 
     size_t total_combinations = pruning_params.size() * adjustment_factors.size();
     std::cout << "Trying " << total_combinations << " parameter combinations "
