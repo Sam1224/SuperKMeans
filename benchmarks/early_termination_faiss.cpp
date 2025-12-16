@@ -76,6 +76,16 @@ int main(int argc, char* argv[]) {
         cp.max_points_per_centroid = 999999; // We don't want to take samples
         cp.nredo = 1;
 
+        // Check if this dataset should use angular/spherical k-means
+        auto is_angular = std::find(
+            bench_utils::ANGULAR_DATASETS.begin(),
+            bench_utils::ANGULAR_DATASETS.end(),
+            dataset
+        );
+        if (is_angular != bench_utils::ANGULAR_DATASETS.end()) {
+            cp.spherical = true;
+        }
+
         // Create the clustering object
         faiss::Clustering clus(d, n_clusters, cp);
 

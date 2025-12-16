@@ -108,6 +108,16 @@ int main(int argc, char* argv[]) {
             config.sampling_fraction = sampling_fraction;
             config.use_blas_only = false;
 
+            // Check if this dataset should use angular/spherical k-means
+            auto is_angular = std::find(
+                bench_utils::ANGULAR_DATASETS.begin(),
+                bench_utils::ANGULAR_DATASETS.end(),
+                dataset
+            );
+            if (is_angular != bench_utils::ANGULAR_DATASETS.end()) {
+                config.angular = true;
+            }
+
             auto kmeans_state =
                 skmeans::SuperKMeans<skmeans::Quantization::f32, skmeans::DistanceFunction::l2>(
                     n_clusters, d, config

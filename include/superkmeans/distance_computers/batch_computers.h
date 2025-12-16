@@ -365,7 +365,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
                 {
                     SKM_PROFILE_SCOPE("search/pdx");
-#pragma omp parallel for num_threads(g_n_threads) schedule(dynamic, 8)
+#pragma omp parallel for num_threads(g_n_threads) schedule(dynamic, 16)
                     for (size_t r = 0; r < batch_n_x; ++r) {
                         const auto i_idx = i + r;
                         auto data_p = x + (i_idx * d);

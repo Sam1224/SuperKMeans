@@ -17,7 +17,7 @@ import sys
 from bench_utils import (DATASET_PARAMS, load_ground_truth, compute_recall,
                          print_recall_results, KNN_VALUES, Timer, write_results_to_csv,
                          MAX_ITERS, N_QUERIES, SCIKIT_EARLY_TERM_MAX_ITERS, SCIKIT_EARLY_TERM_TOL,
-                         get_data_path, get_query_path, get_ground_truth_path)
+                         ANGULAR_DATASETS, get_data_path, get_query_path, get_ground_truth_path)
 
 if __name__ == "__main__":
     # Experiment configuration
@@ -50,6 +50,11 @@ if __name__ == "__main__":
             f"expected {num_vectors * num_dimensions}"
         )
     data = data.reshape(num_vectors, num_dimensions)
+
+    # Check if this dataset should use angular/spherical k-means
+    if dataset in ANGULAR_DATASETS:
+        print(f"\nWARNING: Dataset '{dataset}' should use spherical k-means, "
+              f"but scikit-learn does not support this. Results may be suboptimal.")
 
     # Configure KMeans
     km = KMeans(

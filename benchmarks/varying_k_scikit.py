@@ -16,7 +16,8 @@ import math
 import sys
 from bench_utils import (DATASET_PARAMS, load_ground_truth, compute_recall,
                          print_recall_results, KNN_VALUES, Timer, write_results_to_csv,
-                         MAX_ITERS, N_QUERIES, VARYING_K_VALUES, get_data_path, get_query_path, get_ground_truth_path)
+                         MAX_ITERS, N_QUERIES, VARYING_K_VALUES, ANGULAR_DATASETS,
+                         get_data_path, get_query_path, get_ground_truth_path)
 
 if __name__ == "__main__":
     # Experiment configuration
@@ -49,6 +50,11 @@ if __name__ == "__main__":
             f"expected {num_vectors * num_dimensions}"
         )
     data = data.reshape(num_vectors, num_dimensions)
+
+    # Check if this dataset should use angular/spherical k-means
+    if dataset in ANGULAR_DATASETS:
+        print(f"\nWARNING: Dataset '{dataset}' should use spherical k-means, "
+              f"but scikit-learn does not support this. Results may be suboptimal.")
 
     # Loop over different n_clusters values
     for num_centroids in VARYING_K_VALUES:
