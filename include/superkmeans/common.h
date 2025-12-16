@@ -62,9 +62,6 @@ static inline constexpr size_t D_THRESHOLD_FOR_DCT_ROTATION = 512;
 static inline constexpr size_t H_DIM_SIZE = 64;
 
 static inline constexpr uint32_t MIN_PARTIAL_D = 32;
-static inline constexpr float MIN_NOT_PRUNED_PCT = 0.03f; // 3% not pruned = 97% pruned
-static inline constexpr float MAX_NOT_PRUNED_PCT = 0.05f; // 5% not pruned = 95% pruned
-static inline constexpr float ADJUSTMENT_FACTOR = 0.10f;  // 10% adjustment
 
 static inline constexpr size_t X_BATCH_SIZE = 4096;
 static inline constexpr size_t Y_BATCH_SIZE = 1024;

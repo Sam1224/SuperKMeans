@@ -76,24 +76,35 @@ class TicToc {
 };
 
 // Dataset configurations: name -> (num_vectors, num_dimensions)
+// const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS = {
+//     // {"fmnist", {60000, 784}},
+//     // {"yi", {187843, 128}},
+//     {"llama", {256921, 128}},
+//     // {"sift", {1000000, 128}},
+//     {"yahoo", {677305, 384}},
+//     // {"glove50", {1183514, 50}},
+//     // {"glove100", {1183514, 100}},
+//     {"yandex", {1000000, 200}},
+//     // {"glove200", {1183514, 200}},
+//     {"clip", {1281167, 512}},
+//     {"mxbai", {769382, 1024}},
+//     {"wiki", {260372, 3072}},
+//     // {"contriever", {990000, 768}},
+//     {"gist", {1000000, 960}},
+//     // {"openai", {999000, 1536}},
+//     // {"arxiv", {2253000, 768}},
+//     // {"cohere", {35166920, 768}},
+// };
+
 const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS = {
-    {"mxbai", {769382, 1024}},
-    {"openai", {999000, 1536}},
-    {"wiki", {260372, 3072}},
-    {"arxiv", {2253000, 768}},
-    {"sift", {1000000, 128}},
-    {"fmnist", {60000, 784}},
-    {"glove200", {1183514, 200}},
-    {"glove100", {1183514, 100}},
-    {"glove50", {1183514, 50}},
-    {"gist", {1000000, 960}},
-    {"contriever", {990000, 768}},
+    // {"llama", {256921, 128}},
+    // {"yahoo", {677305, 384}},
+    // {"yandex", {1000000, 200}},
     {"clip", {1281167, 512}},
-    {"yahoo", {677305, 384}},
-    {"llama", {256921, 128}},
-    {"yi", {187843, 128}},
-    {"yandex", {1000000, 200}},
-    {"cohere", {35166920, 768}}
+    {"mxbai", {769382, 1024}},
+    {"wiki", {260372, 3072}},
+    // {"gist", {1000000, 960}},
+    // {"openai", {999000, 1536}}
 };
 
 const std::vector<std::string> ANGULAR_DATASETS = {

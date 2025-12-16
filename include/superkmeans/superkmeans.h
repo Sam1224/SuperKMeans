@@ -37,6 +37,11 @@ struct SuperKMeansConfig {
     size_t objective_k = 100;           ///< Number of nearest neighbors for recall computation
     float ann_explore_fraction = 0.01f; ///< Fraction of centroids to explore (0.0 to 1.0)
 
+    // Pruning parameters
+    float min_not_pruned_pct = 0.03f; ///< Minimum percentage of vectors not pruned (3% = 97% pruned)
+    float max_not_pruned_pct = 0.05f; ///< Maximum percentage of vectors not pruned (5% = 95% pruned)
+    float adjustment_factor_for_partial_d = 0.10f; ///< Adjustment factor for partial_d tuning (10%)
+
     // Output parameters
     bool unrotate_centroids = true;   ///< Whether to unrotate centroids before returning
     bool perform_assignments = false; ///< Whether to perform final assignment pass
@@ -952,16 +957,16 @@ class SuperKMeans {
 
         uint32_t old_partial_d = _initial_partial_d;
 
-        if (avg_not_pruned_pct > MAX_NOT_PRUNED_PCT) {
-            // Too many vectors not pruned (< MAX_NOT_PRUNED_PCT pruned), need more BLAS dimensions
-            // Increase _initial_partial_d by ADJUSTMENT_FACTOR
+        if (avg_not_pruned_pct > _config.max_not_pruned_pct) {
+            // Too many vectors not pruned (< max_not_pruned_pct pruned), need more BLAS dimensions
+            // Increase _initial_partial_d by adjustment_factor_for_partial_d
             // When we increase we have to be more aggresive
-            uint32_t increase = static_cast<uint32_t>(_initial_partial_d * ADJUSTMENT_FACTOR * 2);
+            uint32_t increase = static_cast<uint32_t>(_initial_partial_d * _config.adjustment_factor_for_partial_d * 2);
             _initial_partial_d = std::min(_initial_partial_d + std::max(increase, 1u), _vertical_d);
-        } else if (avg_not_pruned_pct < MIN_NOT_PRUNED_PCT) {
-            // Too few vectors not pruned (> MIN_NOT_PRUNED_PCT pruned), can reduce BLAS dimensions
-            // Decrease _initial_partial_d by ADJUSTMENT_FACTOR
-            uint32_t decrease = static_cast<uint32_t>(_initial_partial_d * ADJUSTMENT_FACTOR);
+        } else if (avg_not_pruned_pct < _config.min_not_pruned_pct) {
+            // Too few vectors not pruned (> min_not_pruned_pct pruned), can reduce BLAS dimensions
+            // Decrease _initial_partial_d by adjustment_factor_for_partial_d
+            uint32_t decrease = static_cast<uint32_t>(_initial_partial_d * _config.adjustment_factor_for_partial_d);
             _initial_partial_d =
                 std::max(_initial_partial_d - std::max(decrease, 1u), MIN_PARTIAL_D);
         }

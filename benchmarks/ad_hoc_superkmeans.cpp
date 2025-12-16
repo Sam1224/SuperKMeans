@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     const std::string algorithm = "superkmeans";
 
     // Choose dataset by name. You can also pass the dataset name as the first CLI argument.
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("yandex");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("openai");
 
     // Experiment name can be passed as second argument (default: "end_to_end")
     std::string experiment_name = (argc > 2) ? std::string(argv[2]) : std::string("end_to_end");
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
     auto is_angular = std::find(bench_utils::ANGULAR_DATASETS.begin(), bench_utils::ANGULAR_DATASETS.end(), dataset);
     if (is_angular != bench_utils::ANGULAR_DATASETS.end()) {
         std::cout << "Using spherical k-means" << std::endl;
-        config.angular = false;
+        config.angular = true;
     }
 
 
