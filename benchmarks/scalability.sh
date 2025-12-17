@@ -88,31 +88,25 @@ for DATASET in "${DATASETS[@]}"; do
 
     # 1. SuperKMeans (C++)
     echo "----------------------------------------"
-    echo "1/4: SuperKMeans"
+    echo "1/3: SuperKMeans"
     echo "----------------------------------------"
     "$BUILD_DIR_ABS/benchmarks/end_to_end_superkmeans.out" "$DATASET" "scalability"
     echo ""
 
     # 2. FAISS (C++)
     echo "----------------------------------------"
-    echo "2/4: FAISS Clustering"
+    echo "2/3: FAISS Clustering"
     echo "----------------------------------------"
     "$BUILD_DIR_ABS/benchmarks/end_to_end_faiss.out" "$DATASET" "scalability"
     echo ""
 
     # 3. scikit-learn KMeans (Python)
     echo "----------------------------------------"
-    echo "3/4: scikit-learn KMeans"
+    echo "3/3: scikit-learn KMeans"
     echo "----------------------------------------"
     python3 end_to_end_scikit.py "$DATASET" "scalability"
     echo ""
 
-    # 4. FastKMeans (Python)
-    echo "----------------------------------------"
-    echo "4/4: FastKMeans"
-    echo "----------------------------------------"
-    python3 end_to_end_fastkmeans.py "$DATASET" "scalability"
-    echo ""
 done
 
 echo ""

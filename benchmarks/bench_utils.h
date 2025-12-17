@@ -82,8 +82,6 @@ const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS 
     {"llama", {256921, 128}},
     {"sift", {1000000, 128}},
     {"yahoo", {677305, 384}},
-    {"glove50", {1183514, 50}},
-    {"glove100", {1183514, 100}},
     {"yandex", {1000000, 200}},
     {"glove200", {1183514, 200}},
     {"clip", {1281167, 512}},
@@ -93,7 +91,7 @@ const std::unordered_map<std::string, std::pair<size_t, size_t>> DATASET_PARAMS 
     {"gist", {1000000, 960}},
     {"openai", {999000, 1536}},
     {"arxiv", {2253000, 768}},
-    // {"cohere", {35166920, 768}},
+    {"cohere", {35166920, 768}},
 };
 
 const std::vector<std::string> ANGULAR_DATASETS = {
@@ -115,14 +113,14 @@ const int MAX_ITERS = 25;
 const int N_QUERIES = 1000;
 
 // Early termination benchmark configuration
-const std::vector<float> RECALL_TOL_VALUES = {0.02f, 0.01f, 0.005f, 0.001f, 0.0005f, 0.0001f};
+const std::vector<float> RECALL_TOL_VALUES = {0.05f, 0.04f, 0.03f, 0.02f, 0.01f, 0.005f, 0.001f, 0.0005f, 0.0001f};
 const std::vector<int> FAISS_EARLY_TERM_ITERS = {10, 25};
 const int SCIKIT_EARLY_TERM_MAX_ITERS = 300;
 const float SCIKIT_EARLY_TERM_TOL = 1e-8f;
 
 // Sampling fraction values for sampling experiment
 const std::vector<float> SAMPLING_FRACTION_VALUES =
-    {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 0.95f, 1.00f};
+    {0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f};
 
 // Iteration values for pareto experiment (grid search)
 const std::vector<int> PARETO_ITERS_VALUES = {1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13,

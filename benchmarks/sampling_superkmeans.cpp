@@ -83,6 +83,11 @@ int main(int argc, char* argv[]) {
         std::cout << "Running with sampling_fraction = " << sampling_fraction << std::endl;
         std::cout << "========================================" << std::endl;
 
+        // For cohere we don't want to waste time
+        if (dataset == "cohere" && sampling_fraction > 0.5) {
+            continue;
+        }
+
         skmeans::SuperKMeansConfig config;
         config.iters = n_iters;
         config.verbose = false;

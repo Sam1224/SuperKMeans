@@ -51,22 +51,20 @@ def get_ground_truth_path(dataset):
 
 # Dataset configurations: name -> (num_vectors, num_dimensions)
 DATASET_PARAMS = {
-    "mxbai": (769_382, 1024),
-    "openai": (999_000, 1536),
-    "wiki": (260_372, 3072),
-    "arxiv": (2_253_000, 768),
-    "sift": (1_000_000, 128),
     "fmnist": (60_000, 784),
-    "glove200": (1_183_514, 200),
-    "glove100": (1_183_514, 100),
-    "glove50": (1_183_514, 50),
-    "gist": (1_000_000, 960),
-    "contriever": (990_000, 768),
-    "clip": (1_281_167, 512),
-    "yahoo": (677_305, 384),
-    "llama": (256_921, 128),
     "yi": (187_843, 128),
+    "llama": (256_921, 128),
+    "sift": (1_000_000, 128),
+    "yahoo": (677_305, 384),
     "yandex": (1_000_000, 200),
+    "glove200": (1_183_514, 200),
+    "clip": (1_281_167, 512),
+    "mxbai": (769_382, 1024),
+    "wiki": (260_372, 3072),
+    "contriever": (990_000, 768),
+    "gist": (1_000_000, 960),
+    "openai": (999_000, 1536),
+    "arxiv": (2_253_000, 768),
     "cohere": (35_166_920, 768)
 }
 
@@ -91,13 +89,13 @@ MAX_ITERS = 25
 N_QUERIES = 1000
 
 # Early termination benchmark configuration
-RECALL_TOL_VALUES = [0.01, 0.005, 0.001, 0.0005, 0.0001]
+RECALL_TOL_VALUES = [0.05, 0.04, 0.03, 0.02, 0.01, 0.005, 0.001, 0.0005, 0.0001]
 FAISS_EARLY_TERM_ITERS = [10, 25]
 SCIKIT_EARLY_TERM_MAX_ITERS = 300
 SCIKIT_EARLY_TERM_TOL = 1e-8
 
 # Sampling fraction values for sampling experiment
-SAMPLING_FRACTION_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+SAMPLING_FRACTION_VALUES = [0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10]
 
 # Iteration values for pareto experiment (grid search)
 PARETO_ITERS_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
