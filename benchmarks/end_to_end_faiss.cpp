@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
     // Set up clustering parameters
     faiss::ClusteringParameters cp;
     cp.niter = n_iters;
-    cp.verbose = true;
+    cp.verbose = false;
     cp.max_points_per_centroid = 999999; // We don't want to take samples
     cp.nredo = 1;
 

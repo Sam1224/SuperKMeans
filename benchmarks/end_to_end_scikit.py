@@ -65,7 +65,7 @@ if __name__ == "__main__":
         n_init=1,
         max_iter=n_iter,
         tol=0.0,  # We dont want early stopping
-        verbose=1,
+        verbose=0,
         random_state=42,
         copy_x=True
     )
