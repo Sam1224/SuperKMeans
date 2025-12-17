@@ -243,36 +243,27 @@ class ADSamplingPruner {
             return;
         }
 #endif
-        // Direct BLAS sgemm call to compute: out = vectors_matrix * matrix.transpose()
-        // Where vectors_matrix is n × num_dimensions and matrix is num_dimensions × num_dimensions (both row-major)
-        // For row-major to column-major: C = A * B becomes C^T = B^T * A^T
-        // So: out^T = matrix * vectors_matrix^T
-        // const char trans_a = 'N';  // Use matrix as-is (no transpose)
-        // const char trans_b = 'N';  // Use vectors_matrix^T as-is (row-major viewed as column-major)
-        //
-        // int m = static_cast<int>(num_dimensions);  // Rows of out^T
-        // int n_blas = static_cast<int>(n);          // Cols of out^T
-        // int k = static_cast<int>(num_dimensions);  // Inner dimension
-        //
-        // float alpha = 1.0f;
-        // float beta = 0.0f;
-        //
-        // int lda = static_cast<int>(num_dimensions);  // Leading dimension of matrix
-        // int ldb = static_cast<int>(num_dimensions);  // Leading dimension of vectors_matrix
-        // int ldc = static_cast<int>(num_dimensions);  // Leading dimension of out
-        //
-        // sgemm_(
-        //     &trans_a, &trans_b,
-        //     &m, &n_blas, &k,
-        //     &alpha,
-        //     matrix.data(), &lda,
-        //     vectors, &ldb,
-        //     &beta,
-        //     out_buffer, &ldc
-        // );
-
+        const char trans_a = 'T';
+        const char trans_b = 'N';
+        int m = static_cast<int>(num_dimensions);
+        int n_blas = static_cast<int>(n);
+        int k = static_cast<int>(num_dimensions);
+        float alpha = 1.0f;
+        float beta = 0.0f;
+        int lda = static_cast<int>(num_dimensions);
+        int ldb = static_cast<int>(num_dimensions);
+        int ldc = static_cast<int>(num_dimensions);
+        sgemm_(
+            &trans_a, &trans_b,
+            &m, &n_blas, &k,
+            &alpha,
+            matrix.data(), &lda,
+            vectors, &ldb,
+            &beta,
+            out_buffer, &ldc
+        );
         // Old Eigen implementation:
-        out.noalias() = vectors_matrix * matrix.transpose();
+        // out.noalias() = vectors_matrix * matrix.transpose();
     }
 
     /**
