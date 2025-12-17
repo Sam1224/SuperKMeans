@@ -1,25 +1,31 @@
 #!/bin/bash
 
 # Early termination benchmark runner for algorithms
-# Usage: ./early_termination.sh [-b build_dir] [dataset1] [dataset2] ...
+# Usage: ./early_termination.sh [-b build_dir] [-p python_cmd] [dataset1] [dataset2] ...
 #   -b build_dir: Build directory (default: ../cmake-build-release)
+#   -p python_cmd: Python command to use (default: python3)
 #   datasets: Dataset names (default: mxbai wiki openai arxiv sift fmnist glove100 glove50 gist contriever)
 #
 # Examples:
-#   ./early_termination.sh                      # Run all datasets with default build dir
-#   ./early_termination.sh mxbai openai         # Run only mxbai and openai
-#   ./early_termination.sh -b ../build mxbai    # Run mxbai with custom build dir
+#   ./early_termination.sh                              # Run all datasets with default build dir and python3
+#   ./early_termination.sh mxbai openai                 # Run only mxbai and openai
+#   ./early_termination.sh -b ../build mxbai            # Run mxbai with custom build dir
+#   ./early_termination.sh -p /path/to/python mxbai     # Run mxbai with custom Python
 
 set -e  # Exit on error
 
-# Default build directory
+# Default build directory and Python command
 BUILD_DIR="../cmake-build-release"
+PYTHON_CMD="python3"
 
 # Parse flags
-while getopts "b:" opt; do
+while getopts "b:p:" opt; do
     case $opt in
         b)
             BUILD_DIR="$OPTARG"
+            ;;
+        p)
+            PYTHON_CMD="$OPTARG"
             ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -58,6 +64,7 @@ echo "Early Termination Benchmark Suite"
 echo "=========================================="
 echo "Build directory: $BUILD_DIR_ABS"
 echo "Project root: $PROJECT_ROOT"
+echo "Python command: $PYTHON_CMD"
 echo "Datasets: ${DATASETS[*]}"
 echo "=========================================="
 echo ""
@@ -104,7 +111,7 @@ for DATASET in "${DATASETS[@]}"; do
     echo "----------------------------------------"
     echo "3/3: scikit-learn KMeans"
     echo "----------------------------------------"
-    python3 early_termination_scikit.py "$DATASET"
+    "$PYTHON_CMD" early_termination_scikit.py "$DATASET"
     echo ""
 done
 

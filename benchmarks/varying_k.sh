@@ -1,25 +1,31 @@
 #!/bin/bash
 
 # Varying_k benchmark runner for all algorithms
-# Usage: ./varying_k.sh [-b build_dir] [dataset1] [dataset2] ...
+# Usage: ./varying_k.sh [-b build_dir] [-p python_cmd] [dataset1] [dataset2] ...
 #   -b build_dir: Build directory (default: ../cmake-build-release)
+#   -p python_cmd: Python command to use (default: python3)
 #   datasets: Dataset names (default: mxbai openai wiki arxiv sift fmnist glove200 glove100 glove50 gist contriever)
 #
 # Examples:
-#   ./varying_k.sh                      # Run all datasets with default build dir
-#   ./varying_k.sh mxbai openai         # Run only mxbai and openai
-#   ./varying_k.sh -b ../build mxbai    # Run mxbai with custom build dir
+#   ./varying_k.sh                              # Run all datasets with default build dir and python3
+#   ./varying_k.sh mxbai openai                 # Run only mxbai and openai
+#   ./varying_k.sh -b ../build mxbai            # Run mxbai with custom build dir
+#   ./varying_k.sh -p /path/to/python mxbai     # Run mxbai with custom Python
 
 set -e  # Exit on error
 
-# Default build directory
+# Default build directory and Python command
 BUILD_DIR="../cmake-build-release"
+PYTHON_CMD="python3"
 
 # Parse flags
-while getopts "b:" opt; do
+while getopts "b:p:" opt; do
     case $opt in
         b)
             BUILD_DIR="$OPTARG"
+            ;;
+        p)
+            PYTHON_CMD="$OPTARG"
             ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -58,6 +64,7 @@ echo "Varying K Benchmark Suite"
 echo "=========================================="
 echo "Build directory: $BUILD_DIR_ABS"
 echo "Project root: $PROJECT_ROOT"
+echo "Python command: $PYTHON_CMD"
 echo "Datasets: ${DATASETS[*]}"
 echo "=========================================="
 echo ""
@@ -104,7 +111,7 @@ for DATASET in "${DATASETS[@]}"; do
     echo "----------------------------------------"
     echo "3/3: scikit-learn KMeans"
     echo "----------------------------------------"
-    python3 varying_k_scikit.py "$DATASET"
+    "$PYTHON_CMD" varying_k_scikit.py "$DATASET"
     echo ""
 
 done
