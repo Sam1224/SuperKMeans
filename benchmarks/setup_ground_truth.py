@@ -184,7 +184,7 @@ def generate_ground_truth(dataset, knns=None, normalize=None):
 
 def main():
     """Generate ground truth for the cohere dataset."""
-    dataset = "fmnist"
+    dataset = "cohere"
 
     print("=" * 80)
     print("Ground Truth Generation")
