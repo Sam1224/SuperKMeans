@@ -8,6 +8,7 @@ using brute force search, and saves the results to JSON files.
 import json
 import numpy as np
 import os
+import sys
 import faiss
 from sklearn import preprocessing
 from bench_utils import (
@@ -183,8 +184,18 @@ def generate_ground_truth(dataset, knns=None, normalize=None):
 
 
 def main():
-    """Generate ground truth for the cohere dataset."""
-    dataset = "cohere"
+    """Generate ground truth for a dataset."""
+    # Default dataset
+    DEFAULT_DATASET = "cohere"
+
+    # Parse command-line arguments
+    if len(sys.argv) > 1:
+        dataset = sys.argv[1]
+        if dataset not in DATASET_PARAMS:
+            print(f"Warning: Unknown dataset '{dataset}', using default '{DEFAULT_DATASET}'")
+            dataset = DEFAULT_DATASET
+    else:
+        dataset = DEFAULT_DATASET
 
     print("=" * 80)
     print("Ground Truth Generation")

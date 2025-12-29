@@ -29,8 +29,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    const int n = it->second.first;
-    const int d = it->second.second;
+    const size_t n = it->second.first;
+    const size_t d = it->second.second;
     int n_iters = bench_utils::MAX_ITERS;
     const size_t THREADS = omp_get_max_threads();
     omp_set_num_threads(THREADS);
