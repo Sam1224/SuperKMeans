@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     const std::string algorithm = "superkmeans";
 
     // Choose dataset by name. You can also pass the dataset name as the first CLI argument.
-    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("openai");
+    std::string dataset = (argc > 1) ? std::string(argv[1]) : std::string("clip");
 
     auto it = bench_utils::DATASET_PARAMS.find(dataset);
     if (it == bench_utils::DATASET_PARAMS.end()) {
@@ -83,10 +83,6 @@ int main(int argc, char* argv[]) {
         std::cout << "Running with sampling_fraction = " << sampling_fraction << std::endl;
         std::cout << "========================================" << std::endl;
 
-        // For cohere we don't want to waste time
-        if (dataset == "cohere" && sampling_fraction > 0.5) {
-            continue;
-        }
 
         skmeans::SuperKMeansConfig config;
         config.iters = n_iters;

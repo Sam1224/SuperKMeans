@@ -225,10 +225,8 @@ class SuperKMeans {
             rotated_queries.resize(n_queries * _d);
             if (_config.sample_queries) {
                 std::cout << "Sampling queries from data..." << std::endl;
-                // We skip the _n_clusters as we don't want the 1st iteration centroids to be the
-                // queries
                 SampleVectors<false>(
-                    data_to_cluster, rotated_queries, _n_samples, n_queries, _n_clusters
+                    data_to_cluster, rotated_queries, _n_samples, n_queries
                 );
             } else {
                 // We already did a validation step to ensure that queries is not nullptr
@@ -1085,23 +1083,21 @@ class SuperKMeans {
     /**
      * @brief Samples and optionally rotates vectors for training.
      *
-     * Takes the first n_samples vectors from data and optionally rotates them
-     * using the pruner's rotation matrix.
+     * Performs random sampling without replacement using shuffle technique,
+     * and optionally rotates the sampled vectors using the pruner's rotation matrix.
      *
      * @tparam ROTATE Whether to apply rotation (default true)
      * @param data Input data matrix
      * @param out_buffer Output buffer for sampled (and optionally rotated) vectors
      * @param n Total number of input vectors
      * @param n_samples Number of vectors to sample
-     * @param n_skip Number of vectors to skip before starting taking samples
      */
     template <bool ROTATE = true>
     void SampleVectors(
         const vector_value_t* SKM_RESTRICT data,
         std::vector<vector_value_t>& out_buffer,
         const size_t n,
-        const size_t n_samples,
-        const size_t n_skip = 0
+        const size_t n_samples
     ) {
         out_buffer.resize(n_samples * _d);
         if (_config.verbose)
@@ -1114,23 +1110,34 @@ class SuperKMeans {
 
         if (n_samples < n) {
             SKM_PROFILE_SCOPE("sampling");
-            // Sequential sampling: take first n_samples vectors
+            // Random sampling without replacement using shuffle
+            std::mt19937 rng(_config.seed);
+            std::vector<size_t> indices(n);
+            for (size_t i = 0; i < n; ++i) {
+                indices[i] = i;
+            }
+            std::shuffle(indices.begin(), indices.end(), rng);
+
             if constexpr (ROTATE) {
                 // Need intermediate buffer: sample first, then rotate
                 samples_tmp.resize(n_samples * _d);
-                memcpy(
-                    (void*) samples_tmp.data(),
-                    (void*) (data + (n_skip * _d)),
-                    sizeof(vector_value_t) * n_samples * _d
-                );
+                for (size_t i = 0; i < n_samples; ++i) {
+                    memcpy(
+                        (void*) (samples_tmp.data() + i * _d),
+                        (void*) (data + indices[i] * _d),
+                        sizeof(vector_value_t) * _d
+                    );
+                }
                 src_data = samples_tmp.data();
             } else {
                 // No rotation: copy directly into output buffer
-                memcpy(
-                    (void*) out_buffer.data(),
-                    (void*) (data + (n_skip * _d)),
-                    sizeof(vector_value_t) * n_samples * _d
-                );
+                for (size_t i = 0; i < n_samples; ++i) {
+                    memcpy(
+                        (void*) (out_buffer.data() + i * _d),
+                        (void*) (data + indices[i] * _d),
+                        sizeof(vector_value_t) * _d
+                    );
+                }
                 return; // Done, no rotation needed
             }
         }
