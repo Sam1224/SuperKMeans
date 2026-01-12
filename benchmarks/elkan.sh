@@ -72,7 +72,7 @@ for DATASET in "${DATASETS[@]}"; do
 
     # scikit-learn KMeans with Elkan algorithm (Python) with varying iterations
     echo "----------------------------------------"
-    echo "scikit-learn KMeans with Elkan (iterations: 1-10, init: random and k-means++)"
+    echo "scikit-learn KMeans with Elkan (iterations: 1-10, init: random)"
     echo "----------------------------------------"
     "$PYTHON_CMD" elkan.py "$DATASET"
     echo ""
