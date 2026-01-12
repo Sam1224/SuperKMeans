@@ -24,7 +24,7 @@ if __name__ == "__main__":
     algorithm = "scikit"
     experiment_name = "varying_k"
 
-    dataset = sys.argv[1] if len(sys.argv) > 1 else "mxbai"
+    dataset = sys.argv[1] if len(sys.argv) > 1 else "llama"
 
     if dataset not in DATASET_PARAMS:
         raise ValueError(
@@ -62,26 +62,48 @@ if __name__ == "__main__":
         print(f"n_clusters={num_centroids}")
         print(f"========================================")
 
-        # Configure KMeans
-        km = KMeans(
-            n_clusters=num_centroids,
-            init='random',
-            n_init=1,
-            max_iter=n_iter,
-            tol=0.0,  # We dont want early stopping
-            verbose=0,
-            random_state=42,
-            copy_x=True
-        )
+        # Use incremental training strategy: run 1 iteration at a time
+        previous_centers = None
+        cumulative_time_ms = 0.0
 
-        # Time the training
-        with Timer() as timer:
-            km.fit(data)
-        construction_time_ms = timer.get_milliseconds()
+        for iter_step in range(1, n_iter + 1):
+            # Determine initialization strategy
+            if previous_centers is not None:
+                # Resume from previous iteration - run just 1 more iteration
+                actual_init = previous_centers
+                actual_max_iter = 1
+            else:
+                # First iteration
+                actual_init = 'random'
+                actual_max_iter = 1
 
-        # Get actual iterations and final objective
-        actual_iterations = km.n_iter_
+            # Configure KMeans
+            km = KMeans(
+                n_clusters=num_centroids,
+                init=actual_init,
+                n_init=1,
+                max_iter=actual_max_iter,
+                tol=0.0,  # We dont want early stopping
+                verbose=0,
+                random_state=42,
+                copy_x=True
+            )
+
+            # Time the training
+            with Timer() as timer:
+                km.fit(data)
+            construction_time_ms = timer.get_milliseconds()
+
+            # Accumulate time
+            cumulative_time_ms += construction_time_ms
+
+            # Store centers for next iteration
+            previous_centers = km.cluster_centers_.copy()
+
+        # Get actual iterations and final objective (after all iterations complete)
+        actual_iterations = n_iter  # We know we've done n_iter total iterations
         final_objective = km.inertia_
+        construction_time_ms = cumulative_time_ms
 
         print(f"\nTraining completed in {construction_time_ms:.2f} ms")
         print(f"Actual iterations: {actual_iterations} (requested: {n_iter})")
@@ -94,9 +116,9 @@ if __name__ == "__main__":
 
         # Create config dictionary with scikit-learn parameters
         config_dict = {
-            "init": str(km.init),
+            "init": "random",
             "n_init": str(km.n_init),
-            "max_iter": str(km.max_iter),
+            "max_iter": str(n_iter),
             "random_state": str(km.random_state),
             "copy_x": str(km.copy_x).lower(),
             "tol": str(km.tol),
