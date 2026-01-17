@@ -86,14 +86,14 @@ class SIMDComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32> {
             d2_vec = _mm256_fmadd_ps(d_vec, d_vec, d2_vec);
         }
 
-        // _simsimd_reduce_skmeans::Quantization::f32x8_haswell
+        // _simsimd_reduce_f32x8_haswell
         // Convert the lower and higher 128-bit lanes of the input vector to double precision
-        __m128 low_skmeans::Quantization::f32 = _mm256_castps256_ps128(d2_vec);
-        __m128 high_skmeans::Quantization::f32 = _mm256_extractf128_ps(d2_vec, 1);
+        __m128 low_f32 = _mm256_castps256_ps128(d2_vec);
+        __m128 high_f32 = _mm256_extractf128_ps(d2_vec, 1);
 
         // Convert single-precision (float) vectors to double-precision (double) vectors
-        __m256d low_f64 = _mm256_cvtps_pd(low_skmeans::Quantization::f32);
-        __m256d high_f64 = _mm256_cvtps_pd(high_skmeans::Quantization::f32);
+        __m256d low_f64 = _mm256_cvtps_pd(low_f32);
+        __m256d high_f64 = _mm256_cvtps_pd(high_f32);
 
         // Perform the addition in double-precision
         __m256d sum = _mm256_add_pd(low_f64, high_f64);
@@ -163,12 +163,12 @@ class SIMDComputer<skmeans::DistanceFunction::dp, skmeans::Quantization::f32> {
 
         // _simsimd_reduce_skmeans::Quantization::f32x8_haswell
         // Convert the lower and higher 128-bit lanes of the input vector to double precision
-        __m128 low_skmeans::Quantization::f32 = _mm256_castps256_ps128(d2_vec);
-        __m128 high_skmeans::Quantization::f32 = _mm256_extractf128_ps(d2_vec, 1);
+        __m128 low_f32 = _mm256_castps256_ps128(d2_vec);
+        __m128 high_f32 = _mm256_extractf128_ps(d2_vec, 1);
 
         // Convert single-precision (float) vectors to double-precision (double) vectors
-        __m256d low_f64 = _mm256_cvtps_pd(low_skmeans::Quantization::f32);
-        __m256d high_f64 = _mm256_cvtps_pd(high_skmeans::Quantization::f32);
+        __m256d low_f64 = _mm256_cvtps_pd(low_f32);
+        __m256d high_f64 = _mm256_cvtps_pd(high_f32);
 
         // Perform the addition in double-precision
         __m256d sum = _mm256_add_pd(low_f64, high_f64);

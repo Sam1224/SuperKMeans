@@ -30,16 +30,16 @@ class DistanceComputer<DistanceFunction::l2, Quantization::f32> {
     constexpr static auto Horizontal = computer::Horizontal;
 };
 
-template <>
-class DistanceComputer<DistanceFunction::l2, Quantization::u8> {
-    using computer = SIMDComputer<DistanceFunction::l2, Quantization::u8>;
+// template <>
+// class DistanceComputer<DistanceFunction::l2, Quantization::u8> {
+//     using computer = SIMDComputer<DistanceFunction::l2, Quantization::u8>;
 
-  public:
-    constexpr static auto VerticalPruning = computer::VerticalPruning<true>;
-    constexpr static auto Vertical = computer::VerticalPruning<false>;
-    constexpr static auto VerticalBlock = computer::Vertical;
-    constexpr static auto Horizontal = computer::Horizontal;
-};
+//   public:
+//     constexpr static auto VerticalPruning = computer::VerticalPruning<true>;
+//     constexpr static auto Vertical = computer::VerticalPruning<false>;
+//     constexpr static auto VerticalBlock = computer::Vertical;
+//     constexpr static auto Horizontal = computer::Horizontal;
+// };
 
 template <Quantization q>
 class UtilsComputer {
