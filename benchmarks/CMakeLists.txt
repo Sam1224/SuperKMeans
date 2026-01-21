@@ -5,7 +5,7 @@
 set(HAS_AVX512 OFF)
 set(HAS_AVX512_SPR OFF)
 set(HAS_AVX2 OFF)
-set(HAS_SVE ON)
+set(HAS_SVE OFF)
 
 #if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 #    include(CheckCXXCompilerFlag)
