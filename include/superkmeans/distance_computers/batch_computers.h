@@ -11,10 +11,9 @@
 #include <Eigen/Eigen/Dense>
 
 // Eigen already declares sgemm_, so we don't need to redeclare it
-// However, I would like to have more control over this
+// TODO(lkuffo, low): However, I would like to have more control over this
 extern "C" {
     /* declare BLAS functions, see http://www.netlib.org/clapack/cblas/ */
-    
     // int sgemm_(
     //         const char* transa,
     //         const char* transb,
@@ -29,13 +28,6 @@ extern "C" {
     //         float* beta,
     //         float* c,
     //         FINTEGER* ldc);
-    
-    // int sgemm_lapack(
-    //     const char* transa, const char* transb,
-    //     const int* m, const int* n, const int* k,
-    //     const float* alpha, const float* a, const int* lda,
-    //     const float* b, const int* ldb, const float* beta,
-    //     float* c, const int* ldc) __asm__("_sgemm$NEWLAPACK");
 }
 
 
@@ -61,10 +53,8 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
   private:
     /**
      * @brief Performs BLAS matrix multiplication: distances = x * y^T
-     * Note that Eigen internally uses BLAS for matrix multiplication, so we can use it directly.
-     * This is convenient as it will work even if a BLAS library is not available.
      *
-     * Computes the dot product matrix between query vectors (x) and reference vectors (y).
+     * Computes the dot product matrix between X and Y
      * Can optionally use only the first partial_d dimensions for partial distance computation.
      *
      * @param batch_x_p Pointer to query vectors batch (batch_n_x × d)
@@ -72,8 +62,8 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param batch_n_x Number of query vectors in batch
      * @param batch_n_y Number of reference vectors in batch
      * @param d Full dimensionality
-     * @param partial_d Number of dimensions to use (if 0 or d, uses all dimensions)
-     * @param all_distances_buf Output buffer for distance matrix (batch_n_x × batch_n_y)
+     * @param partial_d Number of dimensions to use (if 0, uses all dimensions)
+     * @param tmp_distances_buf Output buffer for distance matrix (batch_n_x × batch_n_y)
      */
     static void BlasMatrixMultiplication(
         const data_t* SKM_RESTRICT batch_x_p,
@@ -82,62 +72,37 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         const size_t batch_n_y,
         const size_t d,
         const size_t partial_d,
-        float* SKM_RESTRICT all_distances_buf
+        float* SKM_RESTRICT tmp_distances_buf
     ) {
-        // Direct BLAS sgemm implementation
-        // Compute: distances = x * y^T (all row-major)
-        // where x is batch_n_x × d, y is batch_n_y × d, distances is batch_n_x × batch_n_y
-        //
-        // For row-major matrices with column-major BLAS (Fortran interface):
-        // To compute C = A * B^T, we call: sgemm('T', 'N', n, m, k, alpha, B, ldb, A, lda, beta, C, ldc)
-        // This is the standard row-major to column-major translation
+        const char trans_a = 'T';
+        const char trans_b = 'N';
 
-        const char trans_a = 'T';  // Transpose flag for first operand
-        const char trans_b = 'N';  // No transpose for second operand
-
-        int m = static_cast<int>(batch_n_y);  // Rows of result (swapped for row-major)
-        int n = static_cast<int>(batch_n_x);  // Cols of result (swapped for row-major)
-        int k = static_cast<int>(partial_d > 0 && partial_d < d ? partial_d : d);  // Inner dimension
-
+        int m = static_cast<int>(batch_n_y);
+        int n = static_cast<int>(batch_n_x);
+        int k = static_cast<int>(partial_d > 0 && partial_d < d ? partial_d : d);
         float alpha = 1.0f;
         float beta = 0.0f;
-
-        int lda = static_cast<int>(d);  // Leading dimension of y (row stride in row-major)
-        int ldb = static_cast<int>(d);  // Leading dimension of x (row stride in row-major)
-        int ldc = static_cast<int>(batch_n_y);  // Leading dimension of distances
+        int lda = static_cast<int>(d);  // d of y (row stride in row-major)
+        int ldb = static_cast<int>(d);  // d of x (row stride in row-major)
+        int ldc = static_cast<int>(batch_n_y);  // Leading dimension of tmp_distances_buf
 
         sgemm_(
             &trans_a, &trans_b,
             &m, &n, &k,
             &alpha,
-            batch_y_p, &lda,  // y is first operand (transposed)
-            batch_x_p, &ldb,  // x is second operand (not transposed)
+            batch_y_p, &lda,
+            batch_x_p, &ldb,
             &beta,
-            all_distances_buf, &ldc
+            tmp_distances_buf, &ldc
         );
-
-        // Old Eigen implementation (commented out):
-        // Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
-        // Eigen::Map<const MatrixR> x_matrix(batch_x_p, batch_n_x, d);
-        // Eigen::Map<const MatrixR> y_matrix(batch_y_p, batch_n_y, d);
-        //
-        // if (partial_d > 0 && partial_d < d) {
-        //     // Partial multiplication: use only first partial_d dimensions
-        //     distances_matrix.noalias() =
-        //         x_matrix.leftCols(partial_d) * y_matrix.leftCols(partial_d).transpose();
-        // } else {
-        //     // Full multiplication: use all dimensions
-        //     distances_matrix.noalias() = x_matrix * y_matrix.transpose();
-        // }
     }
 
   public:
     /**
-     * @brief Finds the nearest neighbor for each query vector using batched BLAS.
+     * @brief Finds the top-1 nearest neighbor for each query vector.
      *
-     * Computes L2 distances between all query vectors (X) and reference vectors (Y)
+     * Computes L2 distances between X abd Y
      * using the identity: ||x-y||² = ||x||² + ||y||² - 2*x·y
-     * The dot products are computed efficiently via matrix multiplication.
      *
      * @param x Query vectors in row-major layout (n_x × d)
      * @param y Reference vectors in row-major layout (n_y × d)
@@ -148,7 +113,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param norms_y Pre-computed squared L2 norms of reference vectors
      * @param out_knn Output: index of nearest neighbor for each query
      * @param out_distances Output: distance to nearest neighbor for each query
-     * @param all_distances_buf Scratch buffer for batch distance computation (size: X_BATCH_SIZE ×
+     * @param tmp_distances_buf Buffer for batch distance computation (size: X_BATCH_SIZE ×
      * Y_BATCH_SIZE)
      */
     static void FindNearestNeighbor(
@@ -161,7 +126,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         const norms_t* SKM_RESTRICT norms_y,
         uint32_t* SKM_RESTRICT out_knn,
         distance_t* SKM_RESTRICT out_distances,
-        float* SKM_RESTRICT all_distances_buf
+        float* SKM_RESTRICT tmp_distances_buf
     ) {
         SKM_PROFILE_SCOPE("search");
         SKM_PROFILE_SCOPE("search/1st_blas");
@@ -190,15 +155,15 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                             batch_n_y,
                             d,
                             0,
-                            all_distances_buf + r * batch_n_y
+                            tmp_distances_buf + r * batch_n_y
                         );
                     }
 #else
                 BlasMatrixMultiplication(
-                    batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, all_distances_buf
+                    batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, tmp_distances_buf
                 );
 #endif
-                Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
+                Eigen::Map<MatrixR> distances_matrix(tmp_distances_buf, batch_n_x, batch_n_y);
 #pragma omp parallel for num_threads(g_n_threads)
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
@@ -220,7 +185,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
     }
 
     /**
-     * @brief Finds the k nearest neighbors for each query vector using batched BLAS.
+     * @brief Finds the top-k nearest neighbors for each query vector.
      *
      * Similar to FindNearestNeighbor but maintains top-k candidates per query.
      * Results are merged across Y batches using partial sort.
@@ -235,7 +200,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param k Number of nearest neighbors to find
      * @param out_knn Output: indices of k nearest neighbors for each query (size: n_x × k)
      * @param out_distances Output: distances to k nearest neighbors (size: n_x × k)
-     * @param all_distances_buf Scratch buffer for batch distance computation
+     * @param tmp_distances_buf Scratch buffer for batch distance computation
      */
     static void FindKNearestNeighbors(
         const data_t* SKM_RESTRICT x,
@@ -248,9 +213,8 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         const size_t k,
         uint32_t* SKM_RESTRICT out_knn,
         distance_t* SKM_RESTRICT out_distances,
-        float* SKM_RESTRICT all_distances_buf
+        float* SKM_RESTRICT tmp_distances_buf
     ) {
-        // Initialize output with infinity
         std::fill_n(out_distances, n_x * k, std::numeric_limits<distance_t>::max());
         std::fill_n(out_knn, n_x * k, static_cast<uint32_t>(-1));
 
@@ -276,28 +240,25 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
 
                 BlasMatrixMultiplication(
-                    batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, all_distances_buf
+                    batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, 0, tmp_distances_buf
                 );
-                Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
+                Eigen::Map<MatrixR> distances_matrix(tmp_distances_buf, batch_n_x, batch_n_y);
 
 #pragma omp parallel for num_threads(g_n_threads)
                 for (size_t r = 0; r < batch_n_x; ++r) {
                     const auto i_idx = i + r;
                     const float norm_x_i = norms_x[i_idx];
                     float* row_p = distances_matrix.data() + r * batch_n_y;
-
-                    // Compute L2 distances for current batch
 #pragma clang loop vectorize(enable)
                     for (size_t c = 0; c < batch_n_y; ++c) {
                         row_p[c] = -2.0f * row_p[c] + norm_x_i + norms_y[j + c];
                     }
 
+                    // TODO(lkuffo, low): I feel this can be improved
                     // Merge: Combine previous top-k with current Y batch candidates
-                    // Use pre-allocated per-thread buffer instead of allocating each iteration
                     auto& candidates = thread_candidates[omp_get_thread_num()];
                     candidates.clear();
-
-                    // Add previous top-k (skip if distance is infinity, meaning not filled yet)
+                    // Add previous top-k
                     for (size_t ki = 0; ki < k; ++ki) {
                         if (out_distances[i_idx * k + ki] <
                             std::numeric_limits<distance_t>::max()) {
@@ -306,24 +267,19 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                             );
                         }
                     }
-
                     // Add current batch candidates
                     for (size_t c = 0; c < batch_n_y; ++c) {
                         candidates.push_back({row_p[c], static_cast<uint32_t>(j + c)});
                     }
-
-                    // Partial sort to get new top-k
                     size_t actual_k = std::min(k, candidates.size());
                     std::partial_sort(
                         candidates.begin(), candidates.begin() + actual_k, candidates.end()
                     );
-
                     // Update output with new top-k
                     for (size_t ki = 0; ki < actual_k; ++ki) {
                         out_distances[i_idx * k + ki] = std::max(0.0f, candidates[ki].first);
                         out_knn[i_idx * k + ki] = candidates[ki].second;
                     }
-
                     // Fill remaining slots if needed
                     for (size_t ki = actual_k; ki < k; ++ki) {
                         out_distances[i_idx * k + ki] = std::numeric_limits<distance_t>::max();
@@ -335,12 +291,11 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
     }
 
     /**
-     * @brief Finds nearest neighbors using partial BLAS computation with PDX pruning.
+     * @brief Finds nearest neighbors using partial GEMM+PRUNING.
      *
      * Hybrid approach that computes partial distances (first partial_d dimensions)
-     * via BLAS, then uses ADSampling pruning to skip full distance computation
-     * for unlikely candidates. Significantly faster than full BLAS when pruning
-     * is effective. To prune even better, we get a threshold from the previously assigned centroid.
+     * via GEMM, then uses ADSampling+PDX pruning to skip full distance computation
+     * for unlikely candidates. 
      *
      * @param x Query vectors in row-major layout (n_x × d)
      * @param y Reference vectors in row-major layout (n_y × d)
@@ -351,7 +306,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param norms_y Pre-computed partial squared L2 norms of references (first partial_d dims)
      * @param out_knn Input/Output: current assignment indices (updated with better assignments)
      * @param out_distances Input/Output: current distances (updated with better distances)
-     * @param all_distances_buf Scratch buffer for batch distance computation
+     * @param tmp_distances_buf Scratch buffer for batch distance computation
      * @param pdx_centroids PDX layout containing centroids and searcher for pruned search
      * @param partial_d Number of dimensions used for initial BLAS computation
      * @param out_not_pruned_counts count of non-pruned vectors per query (for tuning d')
@@ -366,7 +321,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         const norms_t* SKM_RESTRICT norms_y,
         uint32_t* SKM_RESTRICT out_knn,
         distance_t* SKM_RESTRICT out_distances,
-        float* SKM_RESTRICT all_distances_buf,
+        float* SKM_RESTRICT tmp_distances_buf,
         const layout_t& pdx_centroids,
         uint32_t partial_d,
         size_t* out_not_pruned_counts
@@ -399,16 +354,16 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                             batch_n_y,
                             d,
                             partial_d,
-                            all_distances_buf + r * batch_n_y
+                            tmp_distances_buf + r * batch_n_y
                         );
                     }
 #else
                     BlasMatrixMultiplication(
-                        batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, partial_d, all_distances_buf
+                        batch_x_p, batch_y_p, batch_n_x, batch_n_y, d, partial_d, tmp_distances_buf
                     );
 #endif
                 }
-                Eigen::Map<MatrixR> distances_matrix(all_distances_buf, batch_n_x, batch_n_y);
+                Eigen::Map<MatrixR> distances_matrix(tmp_distances_buf, batch_n_x, batch_n_y);
                 {
                     SKM_PROFILE_SCOPE("search/norms");
 #pragma omp parallel for num_threads(g_n_threads)
@@ -424,14 +379,15 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                 }
                 {
                     SKM_PROFILE_SCOPE("search/pdx");
-#pragma omp parallel for num_threads(g_n_threads) schedule(dynamic, 16)
+#pragma omp parallel for num_threads(g_n_threads) schedule(dynamic, 8)
                     for (size_t r = 0; r < batch_n_x; ++r) {
                         const auto i_idx = i + r;
                         auto data_p = x + (i_idx * d);
-                        // Note that this will take the KNN from the previous batch loop
+
+                        // To prune even better, we get the initial threshold from the previously assigned centroid
                         const auto prev_assignment = out_knn[i_idx];
                         distance_t dist_to_prev_centroid;
-                        if (j == 0) { // After this out_distances always have the right distance
+                        if (j == 0) {
                             dist_to_prev_centroid =
                                 DistanceComputer<DistanceFunction::l2, Quantization::f32>::
                                     Horizontal(y + (prev_assignment * d), data_p, d);

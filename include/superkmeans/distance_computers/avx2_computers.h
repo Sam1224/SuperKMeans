@@ -24,54 +24,14 @@ class SIMDComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32> {
     using scalar_computer =
         ScalarComputer<skmeans::DistanceFunction::l2, skmeans::Quantization::f32>;
 
-    // Defer to the scalar kernel
-    template <bool SKIP_PRUNED>
-    static void VerticalPruning(
-        const data_t* SKM_RESTRICT query,
-        const data_t* SKM_RESTRICT data,
-        size_t n_vectors,
-        size_t total_vectors,
-        size_t start_dimension,
-        size_t end_dimension,
-        distance_t* distances_p,
-        const uint32_t* pruning_positions = nullptr
-    ) {
-        size_t dimensions_jump_factor = total_vectors;
-        for (size_t dimension_idx = start_dimension; dimension_idx < end_dimension;
-             ++dimension_idx) {
-            uint32_t true_dimension_idx = dimension_idx;
-            size_t offset_to_dimension_start = true_dimension_idx * dimensions_jump_factor;
-            for (size_t vector_idx = 0; vector_idx < n_vectors; ++vector_idx) {
-                auto true_vector_idx = vector_idx;
-                if constexpr (SKIP_PRUNED) {
-                    true_vector_idx = pruning_positions[vector_idx];
-                }
-                float to_multiply =
-                    query[true_dimension_idx] - data[offset_to_dimension_start + true_vector_idx];
-                distances_p[true_vector_idx] += to_multiply * to_multiply;
-            }
-        }
-    }
-
-    // Defer to the scalar kernel
-    static void Vertical(
-        const data_t* SKM_RESTRICT query,
-        const data_t* SKM_RESTRICT data,
-        size_t start_dimension,
-        size_t end_dimension,
-        distance_t* distances_p
-    ) {
-        for (size_t dim_idx = start_dimension; dim_idx < end_dimension; dim_idx++) {
-            size_t dimension_idx = dim_idx;
-            size_t offset_to_dimension_start = dimension_idx * VECTOR_CHUNK_SIZE;
-            for (size_t vector_idx = 0; vector_idx < VECTOR_CHUNK_SIZE; ++vector_idx) {
-                float to_multiply =
-                    query[dimension_idx] - data[offset_to_dimension_start + vector_idx];
-                distances_p[vector_idx] += to_multiply * to_multiply;
-            }
-        }
-    }
-
+    /**
+     * @brief Computes the L2 distance between two float vectors using AVX2.
+     * Taken from SimSimd library: https://github.com/ashvardanian/SimSIMD
+     * @param vector1 Input vector 1
+     * @param vector2 Input vector 2
+     * @param num_dimensions Number of dimensions
+     * @return L2 distance between the two vectors
+     */
     static distance_t Horizontal(
         const data_t* SKM_RESTRICT vector1,
         const data_t* SKM_RESTRICT vector2,
@@ -126,28 +86,14 @@ class SIMDComputer<skmeans::DistanceFunction::dp, skmeans::Quantization::f32> {
     using distance_t = skmeans_distance_t<skmeans::Quantization::f32>;
     using data_t = skmeans_value_t<skmeans::Quantization::f32>;
 
-    // Defer to the scalar kernel
-    template <bool SKIP_PRUNED>
-    static void VerticalPruning(
-        const data_t* SKM_RESTRICT query,
-        const data_t* SKM_RESTRICT data,
-        size_t n_vectors,
-        size_t total_vectors,
-        size_t start_dimension,
-        size_t end_dimension,
-        distance_t* distances_p,
-        const uint32_t* pruning_positions = nullptr
-    ) {}
-
-    // Defer to the scalar kernel
-    static void Vertical(
-        const data_t* SKM_RESTRICT query,
-        const data_t* SKM_RESTRICT data,
-        size_t start_dimension,
-        size_t end_dimension,
-        distance_t* distances_p
-    ) {}
-
+    /**
+     * @brief Computes the Dot Product of two float vectors using AVX2.
+     * Taken from: https://github.com/ashvardanian/SimSIMD
+     * @param vector1 Input vector 1
+     * @param vector2 Input vector 2
+     * @param num_dimensions Number of dimensions
+     * @return Dot Product between the two vectors
+     */
     static distance_t Horizontal(
         const data_t* SKM_RESTRICT vector1,
         const data_t* SKM_RESTRICT vector2,
@@ -202,7 +148,7 @@ class SIMDUtilsComputer<skmeans::Quantization::f32> {
     using data_t = skmeans_value_t<skmeans::Quantization::f32>;
 
     /**
-     * @brief Flip sign of floats based on a mask using AVX2 (single vector).
+     * @brief Flip sign of floats based on a mask using AVX2.
      * @param data Input vector (d elements)
      * @param out Output vector (can be same as data for in-place)
      * @param masks Bitmask array (0x80000000 to flip, 0 to keep)
@@ -210,7 +156,6 @@ class SIMDUtilsComputer<skmeans::Quantization::f32> {
      */
     static void FlipSign(const data_t* data, data_t* out, const uint32_t* masks, size_t d) {
         size_t j = 0;
-        // AVX2: process 8 floats at a time
         for (; j + 8 <= d; j += 8) {
             __m256 vec = _mm256_loadu_ps(data + j);
             __m256i mask = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(masks + j));
@@ -218,7 +163,6 @@ class SIMDUtilsComputer<skmeans::Quantization::f32> {
             vec_i = _mm256_xor_si256(vec_i, mask);
             _mm256_storeu_ps(out + j, _mm256_castsi256_ps(vec_i));
         }
-        // Scalar tail
         auto data_bits = reinterpret_cast<const uint32_t*>(data);
         auto out_bits = reinterpret_cast<uint32_t*>(out);
         for (; j < d; ++j) {
@@ -230,8 +174,6 @@ class SIMDUtilsComputer<skmeans::Quantization::f32> {
      * @brief Initializes positions array with indices of non-pruned vectors using AVX2.
      *
      * Optimized for cases where only ~2% of vectors pass the threshold test.
-     * Processes 8 floats at a time and uses branch prediction hints.
-     *
      * @param n_vectors Number of vectors to process
      * @param n_vectors_not_pruned Output: count of vectors passing threshold (updated)
      * @param pruning_positions Output array of indices that passed (compacted)
@@ -247,35 +189,20 @@ class SIMDUtilsComputer<skmeans::Quantization::f32> {
     ) {
         n_vectors_not_pruned = 0;
         size_t vector_idx = 0;
-
         constexpr size_t k_simd_width = 8;
         const size_t n_vectors_simd = (n_vectors / k_simd_width) * k_simd_width;
-
         __m256 threshold_vec = _mm256_set1_ps(pruning_threshold);
-
-        // Process 8 elements at a time
         for (; vector_idx < n_vectors_simd; vector_idx += k_simd_width) {
-            // Load 8 distances
             __m256 distances = _mm256_loadu_ps(pruning_distances + vector_idx);
-
-            // Compare: dist < threshold
             __m256 cmp_result = _mm256_cmp_ps(distances, threshold_vec, _CMP_LT_OQ);
-
-            // Convert to integer mask
             int mask = _mm256_movemask_ps(cmp_result);
-
-            // Branch hint: likely that no elements passed (98% of the time)
             if (SKM_UNLIKELY(mask)) {
-                // At least one element passed - handle with scalar code
                 for (size_t i = 0; i < k_simd_width; ++i) {
                     pruning_positions[n_vectors_not_pruned] = vector_idx + i;
                     n_vectors_not_pruned += (mask >> i) & 1;
                 }
             }
-            // else: all comparisons failed, skip these 8 elements
         }
-
-        // Handle remaining elements (< 8)
         for (; vector_idx < n_vectors; ++vector_idx) {
             pruning_positions[n_vectors_not_pruned] = vector_idx;
             n_vectors_not_pruned += pruning_distances[vector_idx] < pruning_threshold;

@@ -151,7 +151,7 @@ class SuperKMeans {
             _data_norms.resize(_n_samples);
             _centroid_norms.resize(_n_clusters);
         }
-        std::vector<distance_t> all_distances(X_BATCH_SIZE * Y_BATCH_SIZE);
+        std::vector<distance_t> tmp_distances_buf(X_BATCH_SIZE * Y_BATCH_SIZE);
         _vertical_d = PDXLayout<q, alpha>::GetDimensionSplit(_d).vertical_d;
         _partial_horizontal_centroids.resize(_n_clusters * _vertical_d);
 
@@ -217,7 +217,7 @@ class SuperKMeans {
         //
         if (_config.verbose)
             std::cout << "1st iteration..." << std::endl;
-        FirstAssignAndUpdateCentroids(data_to_cluster, _prev_centroids.data(), all_distances.data());
+        FirstAssignAndUpdateCentroids(data_to_cluster, _prev_centroids.data(), tmp_distances_buf.data());
         ConsolidateCentroids();
         ComputeCost();
         ComputeShift();
@@ -265,7 +265,7 @@ class SuperKMeans {
                 FirstAssignAndUpdateCentroids(
                     data_to_cluster,
                     _prev_centroids.data(), 
-                    all_distances.data()
+                    tmp_distances_buf.data()
                 );
                 ConsolidateCentroids();
                 ComputeCost();
@@ -328,11 +328,12 @@ class SuperKMeans {
                 data_to_cluster,
                 _prev_centroids.data(),
                 centroids_partial_norms.data(),
-                all_distances.data(),
+                tmp_distances_buf.data(),
                 centroids_pdx_wrapper,
                 not_pruned_counts.data()
             );
 
+            auto old_partial_d = _partial_d;
             bool partial_d_changed = false;
             float avg_not_pruned_pct = TunePartialD(
                 not_pruned_counts.data(), _n_samples, _n_clusters, partial_d_changed
@@ -357,7 +358,7 @@ class SuperKMeans {
                 stats.split = _n_split;
                 stats.recall = _recall;
                 stats.not_pruned_pct = avg_not_pruned_pct;
-                stats.partial_d = _partial_d;
+                stats.partial_d = old_partial_d;
                 stats.is_gemm_only = false;
                 iteration_stats.push_back(stats);
             }
@@ -366,7 +367,7 @@ class SuperKMeans {
                           << " | Objective: " << _cost << " | Shift: " << _shift
                           << " | Split: " << _n_split << " | Recall: " << _recall
                           << " | Not Pruned %: " << avg_not_pruned_pct * 100.0f
-                          << " | Partial D: " << _partial_d << std::endl
+                          << " | d': " << old_partial_d << " -> " << _partial_d << std::endl
                           << std::endl;
             if (_config.early_termination &&
                 ShouldStopEarly(n_queries > 0, best_recall, iters_without_improvement, iter_idx)) {
@@ -883,8 +884,6 @@ class SuperKMeans {
         size_t n_y,
         bool& partial_d_changed
     ) {
-
-        // Calculate average not-pruned percentage from not_pruned_counts
         float avg_not_pruned_pct = 0.0f;
         for (size_t i = 0; i < n_samples; ++i) {
             avg_not_pruned_pct += static_cast<float>(not_pruned_counts[i]);
@@ -905,11 +904,6 @@ class SuperKMeans {
                 std::max(_partial_d - std::max(decrease, 1u), MIN_PARTIAL_D);
         }
         partial_d_changed = (old_partial_d != _partial_d);
-        if (_config.verbose && partial_d_changed) {
-            std::cout << "Tuning _partial_d: " << old_partial_d << " -> "
-                      << _partial_d << " (avg not pruned: " << avg_not_pruned_pct * 100.0f
-                      << "%)" << std::endl;
-        }
         return avg_not_pruned_pct;
     }
 
@@ -1028,8 +1022,6 @@ class SuperKMeans {
         const bool rotate = true
     ) {
         out_buffer.resize(n_samples * _d);
-        if (_config.verbose)
-            std::cout << "n_samples: " << n_samples << std::endl;
 
         // Intermediate buffer needed only when both sampling and rotating
         // (we have not yet implemented rotation in-place)
@@ -1037,6 +1029,8 @@ class SuperKMeans {
         const vector_value_t* src_data = data;
 
         if (n_samples < n) {
+            if (_config.verbose)
+                std::cout << "Sampling " << n_samples << " vectors" << std::endl;
             SKM_PROFILE_SCOPE("sampling");
             // Random sampling without replacement using shuffle
             std::mt19937 rng(_config.seed);
@@ -1069,6 +1063,8 @@ class SuperKMeans {
                 return;
             }
         }
+        if (_config.verbose)
+            std::cout << "Not sampling, using all " << n_samples << " vectors" << std::endl;
 
         // Rotate or copy into output buffer
         SKM_PROFILE_SCOPE("rotator");

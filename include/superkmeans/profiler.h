@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+// Disclamer: Code produced by Opus 4.5
+
 namespace skmeans {
 
 /**
