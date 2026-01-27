@@ -9,7 +9,6 @@
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/distance_computers/scalar_computers.h"
-#include "superkmeans/nanobench.h"
 #include "superkmeans/pdx/utils.h"
 
 constexpr size_t N_ITERATIONS = 10000;
@@ -191,10 +190,6 @@ int main() {
         double scalar_time =
             BenchmarkScalarHorizontal(vector1, vector2, d, N_ITERATIONS, scalar_sum);
         double simd_time = BenchmarkSIMDHorizontal(vector1, vector2, d, N_ITERATIONS, simd_sum);
-
-        // Prevent compiler from optimizing away
-        ankerl::nanobench::doNotOptimizeAway(scalar_sum);
-        ankerl::nanobench::doNotOptimizeAway(simd_sum);
 
         BenchmarkResult result;
         result.dimensionality = d;

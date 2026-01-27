@@ -94,8 +94,6 @@ class PDXLayout {
         index->num_horizontal_dimensions = horizontal_d;
         index->num_vertical_dimensions = vertical_d;
         index->num_dimensions = d;
-        index->is_ivf = false;
-        index->is_normalized = false;
         index->clusters.resize(n_pdx_clusters);
         auto pdx_data_p = pdx_data;
         auto hor_data_p = hor_data;

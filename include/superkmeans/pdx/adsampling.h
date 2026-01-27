@@ -13,12 +13,13 @@
 namespace skmeans {
 
 /**
- * @brief ADSampling pruner for early termination in nearest neighbor search.
+ * @brief ADSampling pruner
  *
  * Implements Adaptive Dimension Sampling (ADSampling) which enables early termination
  * during distance computations by predicting whether a candidate can be pruned based
  * on partial distance calculations. Uses a random rotation matrix to ensure dimensions
  * contribute equally to the distance.
+ * Reference: https://dl.acm.org/doi/abs/10.1145/3589282
  *
  * For high-dimensional data (>= D_THRESHOLD_FOR_DCT_ROTATION), uses DCT-based rotation
  * which is more efficient than full matrix multiplication.
@@ -34,13 +35,13 @@ class ADSamplingPruner {
     using MatrixR = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
   public:
-    uint32_t num_dimensions;     ///< Number of dimensions in the data
-    std::vector<float> ratios{}; ///< Precomputed pruning threshold ratios
+    uint32_t num_dimensions;     
+    std::vector<float> ratios{}; // Precomputed pruning threshold ratios
 
     /**
-     * @brief Constructs an ADSamplingPruner with a randomly generated rotation matrix.
+     * @brief Constructor
      *
-     * @param num_dimensions_ Number of dimensions in the data
+     * @param num_dimensions_ 
      * @param epsilon0 Pruning threshold parameter (higher = more aggressive pruning, less accuracy)
      * @param seed Random seed for reproducible rotation matrix generation
      */
@@ -51,6 +52,7 @@ class ADSamplingPruner {
         bool matrix_created = false;
 #ifdef HAS_FFTW
 #ifdef __AVX2__
+// x86 machines don't behave well with FFTW with non-power-of-2 dimensions
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
 #else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
@@ -84,45 +86,6 @@ class ADSamplingPruner {
     }
 
     /**
-     * @brief Constructs an ADSamplingPruner with a pre-computed rotation matrix.
-     *
-     * @param num_dims Number of dimensions in the data
-     * @param eps0 Pruning threshold parameter
-     * @param matrix_p Pointer to pre-computed rotation matrix data (row-major)
-     */
-    ADSamplingPruner(uint32_t num_dims, float eps0, float* matrix_p)
-        : num_dimensions(num_dims), epsilon0(eps0) {
-        InitializeRatios();
-#ifdef HAS_FFTW
-#ifdef __AVX2__
-        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
-#else
-        if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
-#endif
-            fftwf_init_threads();
-            matrix =
-                Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
-                    matrix_p, 1, num_dimensions
-                );
-            // Initialize flip_masks from the matrix
-            flip_masks.resize(num_dimensions);
-            for (size_t i = 0; i < num_dimensions; ++i) {
-                flip_masks[i] = (matrix(i) < 0.0f ? 0x80000000u : 0u);
-            }
-        } else {
-            matrix =
-                Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
-                    matrix_p, num_dimensions, num_dimensions
-                );
-        }
-#else
-        matrix = Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
-            matrix_p, num_dimensions, num_dimensions
-        );
-#endif
-    }
-
-    /**
      * @brief Pre-computes pruning threshold ratios for all dimension indices.
      *
      * Called during construction and when epsilon0 changes.
@@ -144,19 +107,13 @@ class ADSamplingPruner {
         InitializeRatios();
     }
 
-    /** @brief Sets the rotation matrix (copy). */
-    void SetMatrix(const Eigen::MatrixXf& mat) { matrix = mat; }
-
-    /** @brief Sets the rotation matrix (move). */
-    void SetMatrix(Eigen::MatrixXf&& mat) { matrix = std::move(mat); }
-
     /**
      * @brief Computes the pruning threshold for a given number of visited dimensions.
      *
      * @tparam Q Quantization type
-     * @param best_candidate Current best candidate (provides the reference distance)
-     * @param current_dimension_idx Number of dimensions computed so far
-     * @return Pruning threshold - candidates with partial distance above this can be pruned
+     * @param best_candidate Current best candidate (threshold)
+     * @param current_dimension_idx Number of dimensions visited so far
+     * @return Pruning threshold - vectors with partial distance above this can be pruned
      */
     template <Quantization Q = q>
     skmeans_distance_t<Q> GetPruningThreshold(
@@ -169,11 +126,11 @@ class ADSamplingPruner {
     /**
      * @brief Applies sign flipping for DCT-based rotation (FFTW path).
      *
-     * @param data Input data pointer
-     * @param out Output buffer
+     * @param data Input vectors (row-major, n × num_dimensions)
+     * @param out Output vectors (row-major, n × num_dimensions)
      * @param n Number of vectors
      */
-    void FlipSign(const float* data, float* out, const size_t n) {
+    void FlipSign(const value_t* data, value_t* out, const size_t n) {
 #pragma omp parallel for num_threads(g_n_threads)
         for (size_t i = 0; i < n; ++i) {
             const size_t offset = i * num_dimensions;
@@ -184,7 +141,7 @@ class ADSamplingPruner {
     }
 
     /**
-     * @brief Rotates vectors using the rotation matrix.
+     * @brief Rotates vectors
      *
      * Transforms vectors to a rotated space where dimensions contribute more equally
      * to the total distance, enabling effective early termination.
@@ -205,13 +162,14 @@ class ADSamplingPruner {
         Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
 #ifdef HAS_FFTW
 #ifdef __AVX2__
+// x86 machines don't behave well with FFTW with non-power-of-2 dimensions
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
 #else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
 #endif
             FlipSign(vectors, out_buffer, n);
-            int n0 = static_cast<int>(num_dimensions); // length of each 1D transform
-            int howmany = static_cast<int>(n);         // number of transforms (one per row)
+            int n0 = static_cast<int>(num_dimensions);
+            int howmany = static_cast<int>(n);
             fftw_r2r_kind kind[1] = {FFTW_REDFT10};
             auto flag = FFTW_MEASURE;
             if (IsPowerOf2(num_dimensions)) {
@@ -223,14 +181,14 @@ class ADSamplingPruner {
                 1,
                 &n0,
                 howmany,
-                out.data(), /*in*/
+                out.data(),
                 NULL,
                 1,
-                n0,         /*inembed, istride, idist*/
-                out.data(), /*out*/
+                n0,
+                out.data(),
                 NULL,
                 1,
-                n0, /*onembed, ostride, odist*/
+                n0,
                 kind,
                 flag
             );
@@ -262,8 +220,6 @@ class ADSamplingPruner {
             &beta,
             out_buffer, &ldc
         );
-        // Old Eigen implementation:
-        // out.noalias() = vectors_matrix * matrix.transpose();
     }
 
     /**
@@ -280,6 +236,7 @@ class ADSamplingPruner {
         Eigen::Map<MatrixR> out(out_buffer, n, num_dimensions);
 #ifdef HAS_FFTW
 #ifdef __AVX2__
+// x86 machines don't behave well with FFTW with non-power-of-2 dimensions
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION && IsPowerOf2(num_dimensions)) {
 #else
         if (num_dimensions >= D_THRESHOLD_FOR_DCT_ROTATION) {
@@ -320,13 +277,14 @@ class ADSamplingPruner {
         }
 #endif
         // For orthonormal matrix: Q^{-1} = Q^T, and Rotate does v * Q^T, so Unrotate does v * Q
+        // TODO(@lkuffo, high): Use sgemm_ instead of Eigen
         out.noalias() = vectors_matrix * matrix;
     }
 
   private:
-    float epsilon0 = 2.1;             ///< Pruning aggressiveness parameter
-    MatrixR matrix;                   ///< Rotation matrix (or sign vector for DCT)
-    std::vector<uint32_t> flip_masks; ///< Sign flip masks for DCT-based rotation
+    float epsilon0 = 1.5f;            // Pruning aggressiveness parameter
+    MatrixR matrix;                   // Rotation matrix (or sign vector for DCT)
+    std::vector<uint32_t> flip_masks; // Sign flip masks for DCT-based rotation
 
     /**
      * @brief Computes the pruning ratio for a given number of visited dimensions.
@@ -334,12 +292,12 @@ class ADSamplingPruner {
      * Based on the ADSampling paper, the ratio accounts for the expected contribution
      * of remaining dimensions to the total distance.
      *
-     * @param visited_dimensions Number of dimensions computed
+     * @param visited_dimensions Number of dimensions visited so far
      * @return Ratio to multiply with best distance to get pruning threshold
      */
-    float GetRatio(size_t visited_dimensions) {
+    float GetRatio(const size_t visited_dimensions) {
         if (visited_dimensions == 0) {
-            return 1;
+            return 1.0;
         }
         if (visited_dimensions == num_dimensions) {
             return 1.0;

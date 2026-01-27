@@ -1,4 +1,3 @@
-#define ANKERL_NANOBENCH_IMPLEMENT
 #define EIGEN_USE_THREADS
 
 #ifndef BENCHMARK_TIME
@@ -13,7 +12,6 @@
 
 #include "bench_utils.h"
 #include "superkmeans/common.h"
-#include "superkmeans/nanobench.h"
 #include "superkmeans/pdx/adsampling.h"
 #include "superkmeans/pdx/layout.h"
 #include "superkmeans/pdx/utils.h"

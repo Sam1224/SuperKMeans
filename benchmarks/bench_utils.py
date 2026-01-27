@@ -235,7 +235,7 @@ def write_results_to_csv(
 
     Args:
         experiment_name: Name of the experiment (e.g., "end_to_end")
-        algorithm: Name of the algorithm (e.g., "scikit", "fastkmeans")
+        algorithm: Name of the algorithm (e.g., "scikit")
         dataset: Dataset name
         n_iters: Number of iterations (max requested)
         actual_iterations: Actual iterations performed (may be less if early termination)

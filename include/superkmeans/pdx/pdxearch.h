@@ -288,7 +288,7 @@ class PDXearch {
         const size_t end_cluster,
         size_t* initial_not_pruned_accum = nullptr
     ) {
-        alignas(64) thread_local uint32_t pruning_positions[PDX_VECTOR_SIZE];
+        alignas(64) thread_local uint32_t pruning_positions[VECTOR_CHUNK_SIZE];
         DISTANCES_TYPE pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
         size_t n_vectors_not_pruned = 0;
         uint32_t current_dimension_idx = computed_distance_until;

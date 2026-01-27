@@ -5,9 +5,6 @@
 
 namespace skmeans {
 
-/******************************************************************
- * Clock to benchmark algorithms runtime
- ******************************************************************/
 class TicToc {
   public:
     size_t accum_time = 0;

@@ -7,7 +7,6 @@
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/distance_computers/scalar_computers.h"
-#include "superkmeans/nanobench.h"
 #include "superkmeans/pdx/utils.h"
 
 constexpr size_t N_VECTORS = 1024;
@@ -213,12 +212,6 @@ int main() {
     double simd_time_ns = BenchmarkSIMD(
         pruning_distances, pruning_threshold, N_ITERATIONS, simd_total_count, simd_first_pos
     );
-
-    // Prevent compiler from optimizing away the benchmarked code
-    ankerl::nanobench::doNotOptimizeAway(scalar_total_count);
-    ankerl::nanobench::doNotOptimizeAway(simd_total_count);
-    ankerl::nanobench::doNotOptimizeAway(scalar_first_pos);
-    ankerl::nanobench::doNotOptimizeAway(simd_first_pos);
 
     // Print results
     std::cout << std::endl;

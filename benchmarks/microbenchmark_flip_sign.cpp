@@ -8,7 +8,6 @@
 #include "superkmeans/common.h"
 #include "superkmeans/distance_computers/base_computers.h"
 #include "superkmeans/distance_computers/scalar_computers.h"
-#include "superkmeans/nanobench.h"
 #include "superkmeans/pdx/utils.h"
 
 constexpr size_t N_DIMENSIONS = 1024;
@@ -196,10 +195,6 @@ int main() {
 
     double scalar_time_ns = BenchmarkScalar(data, masks, N_ITERATIONS, scalar_checksum);
     double simd_time_ns = BenchmarkSIMD(data, masks, N_ITERATIONS, simd_checksum);
-
-    // Prevent compiler from optimizing away the benchmarked code
-    ankerl::nanobench::doNotOptimizeAway(scalar_checksum);
-    ankerl::nanobench::doNotOptimizeAway(simd_checksum);
 
     // Print results
     std::cout << std::endl;

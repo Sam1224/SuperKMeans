@@ -62,7 +62,7 @@ struct SuperKMeansIterationStats {
     // Number of dimensions used for partial distance computation (d')
     uint32_t partial_d = 0;
      // Whether this iteration used BLAS-only computation (no PDX pruning)
-    bool is_blas_only = false;
+    bool is_gemm_only = false;
 };
 
 template <Quantization q = Quantization::f32, DistanceFunction alpha = DistanceFunction::l2>
@@ -155,13 +155,13 @@ class SuperKMeans {
         _vertical_d = PDXLayout<q, alpha>::GetDimensionSplit(_d).vertical_d;
         _partial_horizontal_centroids.resize(_n_clusters * _vertical_d);
 
-        // Set initial_partial_d dynamically as half of vertical_d (around 12% of d)
-        _initial_partial_d = std::max<uint32_t>(MIN_PARTIAL_D, _vertical_d / 2);
-        if (_initial_partial_d > _vertical_d) {
-            _initial_partial_d = _vertical_d;
+        // Set _partial_d (d') dynamically as half of _vertical_d (around 12% of d)
+        _partial_d = std::max<uint32_t>(MIN_PARTIAL_D, _vertical_d / 2);
+        if (_partial_d > _vertical_d) {
+            _partial_d = _vertical_d;
         }
         if (_config.verbose) {
-            std::cout << "Front dimensions (d') = " << _initial_partial_d << std::endl;
+            std::cout << "Front dimensions (d') = " << _partial_d << std::endl;
             std::cout << "Trailing dimensions (d'') = " << _d - _vertical_d << std::endl;
         }
 
@@ -171,9 +171,7 @@ class SuperKMeans {
         }
 
         std::vector<vector_value_t> data_samples_buffer;
-        // TODO(@lkuffo, crit): If I rotate the vectors, and then sample. 
-        //   I don't need to rotate the sampled vectors again.
-        SampleVectors(data_p, data_samples_buffer, n, _n_samples);
+        SampleAndRotateVectors(data_p, data_samples_buffer, n, _n_samples, true);
         auto data_to_cluster = data_samples_buffer.data();
 
         {
@@ -204,9 +202,7 @@ class SuperKMeans {
             rotated_queries.resize(n_queries * _d);
             if (_config.sample_queries) {
                 std::cout << "Sampling queries from data..." << std::endl;
-                SampleVectors<false>(
-                    data_to_cluster, rotated_queries, _n_samples, n_queries
-                );
+                SampleAndRotateVectors(data_to_cluster, rotated_queries, _n_samples, n_queries, false);
             } else {
                 SKM_PROFILE_SCOPE("rotator");
                 _pruner->Rotate(queries, rotated_queries.data(), n_queries);
@@ -219,7 +215,9 @@ class SuperKMeans {
         //
         // 1st iteration: FULL GEMM
         //
-        InitAssignAndUpdateCentroids(data_to_cluster, _prev_centroids.data(), all_distances.data());
+        if (_config.verbose)
+            std::cout << "1st iteration..." << std::endl;
+        FirstAssignAndUpdateCentroids(data_to_cluster, _prev_centroids.data(), all_distances.data());
         ConsolidateCentroids();
         ComputeCost();
         ComputeShift();
@@ -234,7 +232,7 @@ class SuperKMeans {
             stats.shift = _shift;
             stats.split = _n_split;
             stats.recall = _recall;
-            stats.is_blas_only = false;
+            stats.is_gemm_only = false;
             iteration_stats.push_back(stats);
         }
         if (_config.verbose)
@@ -264,7 +262,7 @@ class SuperKMeans {
             for (; iter_idx < _config.iters; ++iter_idx) {
                 std::swap(_horizontal_centroids, _prev_centroids);
                 GetL2NormsRowMajor(_prev_centroids.data(), _n_clusters, _centroid_norms.data());
-                InitAssignAndUpdateCentroids(
+                FirstAssignAndUpdateCentroids(
                     data_to_cluster,
                     _prev_centroids.data(), 
                     all_distances.data()
@@ -285,7 +283,7 @@ class SuperKMeans {
                     stats.shift = _shift;
                     stats.split = _n_split;
                     stats.recall = _recall;
-                    stats.is_blas_only = true;
+                    stats.is_gemm_only = true;
                     iteration_stats.push_back(stats);
                 }
                 if (_config.verbose)
@@ -316,14 +314,14 @@ class SuperKMeans {
         //
         std::vector<vector_value_t> centroids_partial_norms(_n_clusters);
         std::vector<size_t> not_pruned_counts(_n_samples);
-        GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
+        GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data(), _partial_d);
         for (; iter_idx < _config.iters; ++iter_idx) {
             std::swap(_horizontal_centroids, _prev_centroids);
-            GetL2NormsRowMajor(
+            GetPartialL2NormsRowMajor(
                 _prev_centroids.data(),
                 _n_clusters,
                 centroids_partial_norms.data(),
-                _initial_partial_d
+                _partial_d
             );
             std::fill(not_pruned_counts.begin(), not_pruned_counts.end(), 0);
             AssignAndUpdateCentroids(
@@ -336,11 +334,11 @@ class SuperKMeans {
             );
 
             bool partial_d_changed = false;
-            float avg_not_pruned_pct = TuneInitialPartialD(
+            float avg_not_pruned_pct = TunePartialD(
                 not_pruned_counts.data(), _n_samples, _n_clusters, partial_d_changed
             );
             if (partial_d_changed) {
-                GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data());
+                GetPartialL2NormsRowMajor(data_to_cluster, _n_samples, _data_norms.data(), _partial_d);
             }
             ConsolidateCentroids();
             ComputeCost();
@@ -359,8 +357,8 @@ class SuperKMeans {
                 stats.split = _n_split;
                 stats.recall = _recall;
                 stats.not_pruned_pct = avg_not_pruned_pct;
-                stats.partial_d = _initial_partial_d;
-                stats.is_blas_only = false;
+                stats.partial_d = _partial_d;
+                stats.is_gemm_only = false;
                 iteration_stats.push_back(stats);
             }
             if (_config.verbose)
@@ -368,7 +366,7 @@ class SuperKMeans {
                           << " | Objective: " << _cost << " | Shift: " << _shift
                           << " | Split: " << _n_split << " | Recall: " << _recall
                           << " | Not Pruned %: " << avg_not_pruned_pct * 100.0f
-                          << " | Partial D: " << _initial_partial_d << std::endl
+                          << " | Partial D: " << _partial_d << std::endl
                           << std::endl;
             if (_config.early_termination &&
                 ShouldStopEarly(n_queries > 0, best_recall, iters_without_improvement, iter_idx)) {
@@ -455,7 +453,7 @@ class SuperKMeans {
      * @param rotated_initial_centroids Initial centroids (row-major, _n_clusters × _d)
      * @param tmp_distances_buf Workspace buffer for distance computations
      */
-    void InitAssignAndUpdateCentroids(
+    void FirstAssignAndUpdateCentroids(
         const vector_value_t* SKM_RESTRICT data,
         const vector_value_t* SKM_RESTRICT rotated_initial_centroids,
         distance_t* SKM_RESTRICT tmp_distances_buf
@@ -479,14 +477,14 @@ class SuperKMeans {
     }
 
     /**
-     * @brief Performs assignment and centroid update using hybrid GEMM+PRUNING computation.
+     * @brief Performs assignment and centroid update using GEMM+PRUNING.
      *
-     * Uses GEMM for partial distance computation (first _initial_partial_d dimensions),
+     * Uses GEMM for partial distance computation (first _partial_d dimensions),
      * then PRUNING for completing distances for remaining candidates.
      *
      * @param data Data matrix (row-major, _n_samples × _d)
      * @param centroids Centroids to use for GEMM distance computation (row-major)
-     * @param partial_centroid_norms Partial norms of centroids (first _initial_partial_d dims)
+     * @param partial_centroid_norms Partial norms of centroids (first _partial_d dims)
      * @param tmp_distances_buf Workspace buffer for distance computations
      * @param pdx_centroids PDX-layout centroids for PRUNING
      * @param out_not_pruned_counts Optional output for per-vector pruning statistics
@@ -512,7 +510,7 @@ class SuperKMeans {
             _distances.data(),
             tmp_distances_buf,
             pdx_centroids,
-            _initial_partial_d,
+            _partial_d,
             out_not_pruned_counts
         );
         std::fill(_horizontal_centroids.begin(), _horizontal_centroids.end(), 0.0);
@@ -822,17 +820,18 @@ class SuperKMeans {
     }
 
     /**
-     * @brief Computes partial L2 squared norms (first _initial_partial_d dimensions).
+     * @brief Computes partial L2 squared norms (first _partial_d dimensions).
      */
     void GetPartialL2NormsRowMajor(
         const vector_value_t* SKM_RESTRICT data,
         const size_t n,
-        vector_value_t* SKM_RESTRICT out_norm
+        vector_value_t* SKM_RESTRICT out_norm,
+        const size_t partial_d
     ) {
         SKM_PROFILE_SCOPE("norms_calc");
         Eigen::Map<const MatrixR> e_data(data, n, _d);
         Eigen::Map<VectorR> e_norms(out_norm, n);
-        e_norms.noalias() = e_data.leftCols(_initial_partial_d).rowwise().squaredNorm();
+        e_norms.noalias() = e_data.leftCols(partial_d).rowwise().squaredNorm();
     }
 
     /**
@@ -850,26 +849,9 @@ class SuperKMeans {
     }
 
     /**
-     * @brief Computes partial L2 squared norms (first partial_d dimensions).
-     * @param partial_d Number of dimensions to include in norm computation
-     */
-    void GetL2NormsRowMajor(
-        const vector_value_t* SKM_RESTRICT data,
-        const size_t n,
-        vector_value_t* SKM_RESTRICT out_norm,
-        const size_t partial_d
-    ) {
-        SKM_PROFILE_SCOPE("norms_calc");
-        Eigen::Map<const MatrixR> e_data(data, n, _d);
-        Eigen::Map<VectorR> e_norms(out_norm, n);
-        e_norms.noalias() = e_data.leftCols(partial_d).rowwise().squaredNorm();
-    }
-
-    /**
-     * @brief Copies the first _vertical_d dimensions of centroids for efficient pruning on
-     * PRUNING.
-     * TODO(@lkuffo, high): We can avoid _partial_horizontal_centroids by using the full horizontal
-     * centroids in PRUNING.
+     * @brief Copies the first _vertical_d dimensions of centroids for efficient PRUNING
+     * TODO(@lkuffo, high): We can avoid this by using the full horizontal
+     * centroids in PRUNING
      */
     void CentroidsToAuxiliaryHorizontal() {
         Eigen::Map<MatrixR> hor_centroids(_horizontal_centroids.data(), _n_clusters, _d);
@@ -880,22 +862,22 @@ class SuperKMeans {
     }
 
     /**
-     * @brief Tune _initial_partial_d based on the average not-pruned percentage.
+     * @brief Tune _partial_d based on the average not-pruned percentage.
      *
      * A safe range for pruning is between 95% - 97% of vectors pruned (i.e., 3% - 5% not pruned).
-     * - If avg_not_pruned_pct > 5% (i.e., less than 95% pruned), we reduce _initial_partial_d by
+     * - If avg_not_pruned_pct > 5% (i.e., less than 95% pruned), we reduce _partial_d by
      * _config.adjustment_factor_for_partial_d to be more aggressive in pruning
-     * - If avg_not_pruned_pct < 3% (i.e., more than 97% pruned), we increase _initial_partial_d by
+     * - If avg_not_pruned_pct < 3% (i.e., more than 97% pruned), we increase _partial_d by
      * _config.adjustment_factor_for_partial_d to be less aggressive
-     * - _initial_partial_d is clamped between MIN_PARTIAL_D and _vertical_d
+     * - _partial_d is clamped between MIN_PARTIAL_D and _vertical_d
      *
      * @param not_pruned_counts Buffer containing per-vector not-pruned counts
      * @param n_samples Number of X vectors
      * @param n_y Number of Y vectors (centroids)
-     * @param partial_d_changed Output parameter: set to true if _initial_partial_d was changed
+     * @param partial_d_changed Output parameter: set to true if _partial_d was changed
      * @return The computed average not-pruned percentage
      */
-    float TuneInitialPartialD(
+    float TunePartialD(
         const size_t* not_pruned_counts,
         size_t n_samples,
         size_t n_y,
@@ -909,23 +891,23 @@ class SuperKMeans {
         }
         avg_not_pruned_pct /= static_cast<float>(n_samples * n_y);
 
-        uint32_t old_partial_d = _initial_partial_d;
+        uint32_t old_partial_d = _partial_d;
         if (avg_not_pruned_pct > _config.max_not_pruned_pct) {
             // Too many vectors not pruned (< max_not_pruned_pct pruned), need more GEMM dimensions
-            // Increase _initial_partial_d by adjustment_factor_for_partial_d * 2
-            uint32_t increase = static_cast<uint32_t>(_initial_partial_d * _config.adjustment_factor_for_partial_d * 2);
-            _initial_partial_d = std::min(_initial_partial_d + std::max(increase, 1u), _vertical_d);
+            // Increase _partial_d by adjustment_factor_for_partial_d * 2
+            uint32_t increase = static_cast<uint32_t>(_partial_d * _config.adjustment_factor_for_partial_d * 2);
+            _partial_d = std::min(_partial_d + std::max(increase, 1u), _vertical_d);
         } else if (avg_not_pruned_pct < _config.min_not_pruned_pct) {
             // Too few vectors not pruned (> min_not_pruned_pct pruned), can reduce GEMM dimensions
-            // Decrease _initial_partial_d by adjustment_factor_for_partial_d
-            uint32_t decrease = static_cast<uint32_t>(_initial_partial_d * _config.adjustment_factor_for_partial_d);
-            _initial_partial_d =
-                std::max(_initial_partial_d - std::max(decrease, 1u), MIN_PARTIAL_D);
+            // Decrease _partial_d by adjustment_factor_for_partial_d
+            uint32_t decrease = static_cast<uint32_t>(_partial_d * _config.adjustment_factor_for_partial_d);
+            _partial_d =
+                std::max(_partial_d - std::max(decrease, 1u), MIN_PARTIAL_D);
         }
-        partial_d_changed = (old_partial_d != _initial_partial_d);
+        partial_d_changed = (old_partial_d != _partial_d);
         if (_config.verbose && partial_d_changed) {
-            std::cout << "Tuning _initial_partial_d: " << old_partial_d << " -> "
-                      << _initial_partial_d << " (avg not pruned: " << avg_not_pruned_pct * 100.0f
+            std::cout << "Tuning _partial_d: " << old_partial_d << " -> "
+                      << _partial_d << " (avg not pruned: " << avg_not_pruned_pct * 100.0f
                       << "%)" << std::endl;
         }
         return avg_not_pruned_pct;
@@ -1038,12 +1020,12 @@ class SuperKMeans {
      * @param n Total number of input vectors
      * @param n_samples Number of vectors to sample
      */
-    template <bool ROTATE = true>
-    void SampleVectors(
+    void SampleAndRotateVectors(
         const vector_value_t* SKM_RESTRICT data,
         std::vector<vector_value_t>& out_buffer,
         const size_t n,
-        const size_t n_samples
+        const size_t n_samples,
+        const bool rotate = true
     ) {
         out_buffer.resize(n_samples * _d);
         if (_config.verbose)
@@ -1064,7 +1046,7 @@ class SuperKMeans {
             }
             std::shuffle(indices.begin(), indices.end(), rng);
 
-            if constexpr (ROTATE) {
+            if (rotate) {
                 // Need intermediate buffer: sample first, then rotate
                 samples_tmp.resize(n_samples * _d);
                 for (size_t i = 0; i < n_samples; ++i) {
@@ -1090,7 +1072,7 @@ class SuperKMeans {
 
         // Rotate or copy into output buffer
         SKM_PROFILE_SCOPE("rotator");
-        if constexpr (ROTATE) {
+        if (rotate) {
             _pruner->Rotate(src_data, out_buffer.data(), n_samples);
         } else {
             memcpy(
@@ -1105,7 +1087,7 @@ class SuperKMeans {
 
     uint32_t _n_threads;
     size_t _n_samples = 0;
-    uint32_t _initial_partial_d = 0;
+    uint32_t _partial_d = 0; // d'
 
     // Iteration state
     bool _trained = false;

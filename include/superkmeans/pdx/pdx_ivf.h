@@ -5,9 +5,9 @@
 
 namespace skmeans {
 
-/******************************************************************
- * IndexPDXIVF - PDX index structure for IVF
- ******************************************************************/
+/*
+ * PDX index structure for IVF
+ */
 template <Quantization q>
 class IndexPDXIVF {};
 
@@ -21,10 +21,6 @@ class IndexPDXIVF<Quantization::f32> {
     uint32_t num_horizontal_dimensions{};
     uint32_t num_vertical_dimensions{};
     std::vector<CLUSTER_TYPE> clusters;
-    bool is_ivf{};
-    bool is_normalized{};
-    float* centroids{};
-    float* centroids_pdx{};
 };
 
 template <>
@@ -37,10 +33,6 @@ class IndexPDXIVF<Quantization::u8> {
     uint32_t num_horizontal_dimensions{};
     uint32_t num_vertical_dimensions{};
     std::vector<Cluster<Quantization::u8>> clusters;
-    bool is_ivf{};
-    bool is_normalized{};
-    float* centroids{};
-    float* centroids_pdx{};
 
     float for_base{};
     float scale_factor{};

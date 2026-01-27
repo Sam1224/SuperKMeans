@@ -1,4 +1,3 @@
-#define ANKERL_NANOBENCH_IMPLEMENT
 #define EIGEN_USE_THREADS
 
 #include <faiss/utils/utils.h>
@@ -13,7 +12,6 @@
 #include <faiss/IndexFlat.h>
 
 #include "bench_utils.h"
-#include "superkmeans/nanobench.h"
 
 int main(int argc, char* argv[]) {
     // Experiment configuration

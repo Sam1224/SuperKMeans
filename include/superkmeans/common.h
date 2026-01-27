@@ -72,9 +72,8 @@ static inline constexpr size_t MINI_BATCH_SIZE = 256;
 static inline constexpr size_t X_BATCH_SIZE = 4096;
 static inline constexpr size_t Y_BATCH_SIZE = 1024;
 #endif
-// Note: VECTOR_CHUNK_SIZE and PDX_VECTOR_SIZE are aliases for Y_BATCH_SIZE
+
 static inline constexpr size_t VECTOR_CHUNK_SIZE = Y_BATCH_SIZE;
-static inline constexpr uint16_t PDX_VECTOR_SIZE = Y_BATCH_SIZE;
 
 static inline constexpr size_t RECALL_CONVERGENCE_PATIENCE = 2;
 static inline constexpr float CENTROID_PERTURBATION_EPS = 1.0f / 1024.0f;
