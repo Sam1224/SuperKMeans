@@ -40,7 +40,7 @@ struct SuperKMeansConfig {
     // Sweet range for d' tuning
     float min_not_pruned_pct = 0.03f; // Minimum percentage of vectors not pruned (3% = 97% pruned)
     float max_not_pruned_pct = 0.05f; // Maximum percentage of vectors not pruned (5% = 95% pruned)
-    // Adjustment factor for partial_d tuning when outside the sweet range
+    // Adjustment factor for d' tuning when outside the sweet range
     float adjustment_factor_for_partial_d = 0.20f; 
 
     // Output parameters
@@ -1005,11 +1005,11 @@ class SuperKMeans {
         for (size_t i = 0; i < _n_clusters; ++i) {
             auto horizontal_centroids_p_i = horizontal_centroids_p + i * _d;
             float sum = 0.0f;
-            for (size_t j = 0; j < _d; ++j) { // Should trivially vectorize
+            for (size_t j = 0; j < _d; ++j) {
                 sum += horizontal_centroids_p_i[j] * horizontal_centroids_p_i[j];
             }
             float norm = 1.0f / std::sqrt(sum);
-            for (size_t j = 0; j < _d; ++j) { // Should trivially vectorize
+            for (size_t j = 0; j < _d; ++j) {
                 horizontal_centroids_p_i[j] *= norm;
             }
         }

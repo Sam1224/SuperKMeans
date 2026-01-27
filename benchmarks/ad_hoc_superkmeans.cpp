@@ -1,5 +1,3 @@
-#define EIGEN_USE_THREADS
-
 #ifndef BENCHMARK_TIME
 #define BENCHMARK_TIME = true
 #endif

@@ -1,5 +1,3 @@
-#define EIGEN_USE_THREADS
-
 #include <faiss/utils/utils.h>
 
 #include <fstream>

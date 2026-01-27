@@ -1,5 +1,3 @@
-#define EIGEN_USE_THREADS
-
 #include <fstream>
 #include <iostream>
 #include <omp.h>
