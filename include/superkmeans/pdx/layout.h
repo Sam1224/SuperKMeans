@@ -10,23 +10,19 @@
 
 namespace skmeans {
 
-/**
- * @brief Holds the split of dimensions between vertical and horizontal storage.
- */
 struct PDXDimensionSplit {
-    size_t horizontal_d{0}; ///< Number of horizontal dimensions (stored row-major)
-    size_t vertical_d{0};   ///< Number of vertical dimensions (stored column-major)
+    size_t horizontal_d{0};
+    size_t vertical_d{0};
 };
 
 /**
- * @brief PDX data layout manager for efficient SIMD-friendly nearest neighbor search.
+ * @brief PDX layout manager
  *
  * PDX is a hybrid data layout that splits dimensions into:
  * - Vertical dimensions: stored column-major for efficient early termination scanning
  * - Horizontal dimensions: stored in row-major blocks for efficient SIMD operations
- *
- * This layout enables the PDXearch algorithm to efficiently prune candidates using
- * partial distance computations.
+ * Reference: https://dl.acm.org/doi/abs/10.1145/3725333
+ * TODO(lkuffo, high): In this version of PDX we don't use the vertical dimensions
  *
  * @tparam q Quantization type (f32 or u8)
  * @tparam alpha Distance function (l2 or dp)
@@ -37,14 +33,14 @@ class PDXLayout {
     using index_t = IndexPDXIVF<q>;
     using scalar_t = skmeans_value_t<q>;
     using cluster_t = Cluster<q>;
-    using Pruner = ADSamplingPruner<q>;
+    using pruner_t = ADSamplingPruner<q>;
     using searcher_t = PDXearch<q, IndexPDXIVF<q>, alpha>;
 
   public:
     /**
-     * @brief Constructs a PDXLayout from existing data buffers.
+     * @brief Constructor
      *
-     * @param pdx_data Pointer to PDX-formatted data buffer
+     * @param pdx_data Pointer to an already PDX-formatted data buffer
      * @param pruner Reference to the ADSamplingPruner for search operations
      * @param n_points Number of data points
      * @param d Number of dimensions
@@ -52,10 +48,10 @@ class PDXLayout {
      */
     PDXLayout(
         scalar_t* pdx_data,
-        Pruner& pruner,
+        pruner_t& pruner,
         size_t n_points,
         size_t d,
-        scalar_t* hor_data = nullptr
+        scalar_t* hor_data
     ) {
         index = std::make_unique<index_t>(); // PDXLayout is owner of the Index
         FromBufferToPDXIndex(pdx_data, n_points, d, hor_data);
@@ -66,7 +62,7 @@ class PDXLayout {
      * @brief Initializes the PDX index structure from a data buffer.
      *
      * Partitions the data into clusters of VECTOR_CHUNK_SIZE vectors each,
-     * setting up the index structure for PDXearch operations.
+     * setting up the index structure for PDXearch.
      *
      * @param pdx_data Pointer to PDX-formatted data
      * @param n_points Number of data points
@@ -77,7 +73,7 @@ class PDXLayout {
         scalar_t* SKM_RESTRICT pdx_data,
         const size_t n_points,
         const size_t d,
-        scalar_t* SKM_RESTRICT hor_data = nullptr
+        scalar_t* SKM_RESTRICT hor_data
     ) {
         auto [horizontal_d, vertical_d] = GetDimensionSplit(d);
         size_t n_pdx_clusters = n_points / VECTOR_CHUNK_SIZE;
@@ -86,9 +82,7 @@ class PDXLayout {
         if (n_remaining) {
             n_pdx_clusters++;
         }
-
         index->num_clusters = n_pdx_clusters;
-        // We define sequential centroid ids
         centroid_ids.resize(n_points);
         std::iota(centroid_ids.begin(), centroid_ids.end(), 0);
         index->num_horizontal_dimensions = horizontal_d;
@@ -103,10 +97,8 @@ class PDXLayout {
             cluster.num_embeddings = VECTOR_CHUNK_SIZE;
             cluster.data = pdx_data_p;
             cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
-            if (hor_data_p) {
-                cluster.aux_vertical_dimensions_in_horizontal_layout = hor_data_p;
-                hor_data_p += VECTOR_CHUNK_SIZE * vertical_d;
-            }
+            cluster.aux_vertical_dimensions_in_horizontal_layout = hor_data_p;
+            hor_data_p += VECTOR_CHUNK_SIZE * vertical_d;
             pdx_data_p += VECTOR_CHUNK_SIZE * d;
         }
         if (n_remaining) {
@@ -114,21 +106,18 @@ class PDXLayout {
             cluster.num_embeddings = n_remaining;
             cluster.data = pdx_data_p;
             cluster.indices = centroid_ids.data() + (cluster_idx * VECTOR_CHUNK_SIZE);
-            if (hor_data_p) {
-                cluster.aux_vertical_dimensions_in_horizontal_layout = hor_data_p;
-            }
+            cluster.aux_vertical_dimensions_in_horizontal_layout = hor_data_p;
         }
     }
 
     /**
-     * @brief Get number of vertical and horizontal dimensions. We will try to split 25% to
-     * vertical and 75% to horizontal.
+     * @brief Get number of vertical and horizontal dimensions. 
+     * 25% vertical and 75% horizontal.
      *
      * @param d Number of dimensions (cols) in the data
-     * @return void
+     * @return PDXDimensionSplit
      */
     static inline PDXDimensionSplit GetDimensionSplit(const size_t d) {
-        // We compute the split of vertical and horizontal dimensions
         auto local_proportion_horizontal_dim = PROPORTION_HORIZONTAL_DIM;
         if (d <= 256) {
             local_proportion_horizontal_dim = 0.25;
@@ -177,7 +166,8 @@ class PDXLayout {
 
         const size_t full_chunks = n / CHUNK_SIZE;
         const size_t n_remaining = n % CHUNK_SIZE;
-        // TODO(@lkuffo, high): Parallelize
+ 
+        // TODO(@lkuffo, med): Remove dependency on Eigen
         for (size_t i = 0; i < full_chunks; ++i) {
             auto chunk_offset = (i * CHUNK_SIZE) * d; // Chunk offset is the same in both layouts
             const scalar_t* SKM_RESTRICT chunk_p = in_vectors + chunk_offset;
@@ -241,11 +231,11 @@ class PDXLayout {
         }
     }
 
-    std::unique_ptr<searcher_t> searcher = nullptr; ///< PDXearch instance for this layout
-    std::unique_ptr<index_t> index;                 ///< Index structure holding cluster metadata
+    std::unique_ptr<searcher_t> searcher = nullptr;
+    std::unique_ptr<index_t> index;
 
   protected:
-    std::vector<uint32_t> centroid_ids; ///< Vector of centroid IDs (0 to n_points-1)
+    std::vector<uint32_t> centroid_ids;
 };
 
 } // namespace skmeans
