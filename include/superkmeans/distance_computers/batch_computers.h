@@ -354,8 +354,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
      * @param all_distances_buf Scratch buffer for batch distance computation
      * @param pdx_centroids PDX layout containing centroids and searcher for pruned search
      * @param partial_d Number of dimensions used for initial BLAS computation
-     * @param out_not_pruned_counts Optional output: count of non-pruned vectors per query (for
-     * tuning)
+     * @param out_not_pruned_counts count of non-pruned vectors per query (for tuning d')
      */
     static void FindNearestNeighborWithPruning(
         const data_t* SKM_RESTRICT x,
@@ -370,7 +369,7 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
         float* SKM_RESTRICT all_distances_buf,
         const layout_t& pdx_centroids,
         uint32_t partial_d,
-        size_t* out_not_pruned_counts = nullptr
+        size_t* out_not_pruned_counts
     ) {
         SKM_PROFILE_SCOPE("search");
         for (size_t i = 0; i < n_x; i += X_BATCH_SIZE) {
@@ -452,18 +451,16 @@ class BatchComputer<DistanceFunction::l2, Quantization::f32> {
                                     prev_assignment,
                                     partial_distances_p,
                                     partial_d,
-                                    j / VECTOR_CHUNK_SIZE, // start cluster_id
+                                    j / VECTOR_CHUNK_SIZE, // start cluster_idx
                                     (j + Y_BATCH_SIZE) /
-                                        VECTOR_CHUNK_SIZE, // end cluster_id; We use Y_BATCH_SIZE
+                                        VECTOR_CHUNK_SIZE, // end cluster_idx; We use Y_BATCH_SIZE
                                                            // and not batch_n_y because otherwise we
                                                            // would not go up until incomplete
                                                            // clusters
-                                    out_not_pruned_counts != nullptr ? &local_not_pruned : nullptr
+                                    local_not_pruned
                                 );
-                        // Store not-pruned count for this X vector (accumulate across Y batches)
-                        if (out_not_pruned_counts != nullptr) {
-                            out_not_pruned_counts[i_idx] += local_not_pruned;
-                        }
+                        // Accumulate the not-pruned count for this X vector
+                        out_not_pruned_counts[i_idx] += local_not_pruned;
                         auto [assignment_idx, assignment_distance] = assignment;
                         out_knn[i_idx] = assignment_idx;
                         out_distances[i_idx] = assignment_distance;

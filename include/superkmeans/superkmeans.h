@@ -487,7 +487,7 @@ class SuperKMeans {
      * @param partial_centroid_norms Partial norms of centroids (first _partial_d dims)
      * @param tmp_distances_buf Workspace buffer for distance computations
      * @param pdx_centroids PDX-layout centroids for PRUNING
-     * @param out_not_pruned_counts Optional output for per-vector pruning statistics
+     * @param out_not_pruned_counts Output for pruning statistics
      */
     void AssignAndUpdateCentroids(
         const vector_value_t* SKM_RESTRICT data,
@@ -495,7 +495,7 @@ class SuperKMeans {
         const vector_value_t* SKM_RESTRICT partial_centroid_norms,
         distance_t* SKM_RESTRICT tmp_distances_buf,
         const layout_t& pdx_centroids,
-        size_t* out_not_pruned_counts = nullptr
+        size_t* out_not_pruned_counts
     ) {
         _cost = 0.0;
         batch_computer::FindNearestNeighborWithPruning(

@@ -10,14 +10,15 @@
 namespace skmeans {
 
 /**
- * @brief PDXearch - Efficient Top-1 nearest neighbor search with early termination.
+ * @brief PDXearch
  *
  * Implements the PDXearch algorithm for finding the nearest neighbor using the PDX
- * data layout combined with ADSampling-based pruning. In this lightweight implementation,
- * we skip the warmup phase and directly use the pre-computed partial distances.
+ * data layout combined with ADSampling-based pruning. 
+ * In this lightweight version, we optimize for top-1 search.
+ * Reference: https://dl.acm.org/doi/abs/10.1145/3725333
  *
  * @tparam q Quantization type (f32 or u8)
- * @tparam Index Index type (typically IndexPDXIVF<q>)
+ * @tparam Index 
  * @tparam alpha Distance function (l2 or dp)
  */
 template <
@@ -34,11 +35,11 @@ class PDXearch {
     using VectorComparator_t = VectorComparator<q>;
     using Pruner = ADSamplingPruner<q>;
 
-    Pruner& pruner;       ///< Reference to the ADSampling pruner
-    INDEX_TYPE& pdx_data; ///< Reference to the PDX index data
+    Pruner& pruner;       
+    INDEX_TYPE& pdx_data;
 
     /**
-     * @brief Constructs a PDXearch instance.
+     * @brief Constructor
      *
      * @param data_index Reference to the PDX index containing the data
      * @param pruner Reference to the ADSampling pruner for threshold computation
@@ -46,14 +47,12 @@ class PDXearch {
     PDXearch(INDEX_TYPE& data_index, Pruner& pruner) : pruner(pruner), pdx_data(data_index) {}
 
   protected:
-    const float selectivity_threshold =
-        0.80; ///< Target fraction of vectors to prune in warmup phase
 
     /**
      * @brief Retrieves the pruning threshold from the pruner.
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE void GetPruningThreshold(
+    void GetPruningThreshold(
         KNNCandidate<Q>& best_candidate,
         skmeans_distance_t<Q>& pruning_threshold,
         uint32_t current_dimension_idx
@@ -63,10 +62,10 @@ class PDXearch {
     }
 
     /**
-     * @brief Updates the positions array to keep only non-pruned candidates.
+     * @brief Updates the positions array to keep only non-pruned vectors.
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE void EvaluatePruningPredicateOnPositionsArray(
+    void EvaluatePruningPredicateOnPositionsArray(
         size_t n_vectors,
         size_t& n_vectors_not_pruned,
         uint32_t* pruning_positions,
@@ -85,7 +84,7 @@ class PDXearch {
      * @brief Initializes the positions array with indices of non-pruned vectors.
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE void InitPositionsArray(
+    void InitPositionsArray(
         size_t n_vectors,
         size_t& n_vectors_not_pruned,
         uint32_t* pruning_positions,
@@ -98,10 +97,7 @@ class PDXearch {
     }
 
     /**
-     * @brief Prune phase: iteratively eliminates candidates using remaining dimensions.
-     *
-     * Processes horizontal dimensions first (more SIMD-friendly), then remaining vertical
-     * dimensions. After each block, re-evaluates which candidates can be pruned.
+     * @brief Prune phase: iteratively eliminates vectors using remaining dimensions.
      *
      * @tparam Q Quantization type
      * @param query Query vector
@@ -115,12 +111,12 @@ class PDXearch {
      * @param current_dimension_idx Number of dimensions processed (updated)
      * @param vector_indices Mapping from local to global vector indices
      * @param prev_top_1 Previous best candidate index (for early exit)
-     * @param aux_vertical_dimensions_in_horizontal_layout Optional auxiliary horizontal data for
+     * @param aux_vertical_dimensions_in_horizontal_layout Auxiliary horizontal data for
      * vertical dimensions
-     * @param initial_not_pruned_out Optional output for initial non-pruned count
+     * @param initial_not_pruned_out Output for starting non-pruned count
      */
     template <Quantization Q = q>
-    SKM_NO_INLINE void Prune(
+    void Prune(
         const skmeans_value_t<Q>* SKM_RESTRICT query,
         const skmeans_value_t<Q>* SKM_RESTRICT data,
         const size_t n_vectors,
@@ -132,18 +128,15 @@ class PDXearch {
         uint32_t& current_dimension_idx,
         const uint32_t* vector_indices,
         const uint32_t prev_top_1,
-        const skmeans_value_t<Q>* SKM_RESTRICT aux_vertical_dimensions_in_horizontal_layout =
-            nullptr,
-        size_t* initial_not_pruned_out = nullptr
+        const skmeans_value_t<Q>* SKM_RESTRICT aux_vertical_dimensions_in_horizontal_layout,
+        size_t& initial_not_pruned_out
     ) {
         GetPruningThreshold<Q>(best_candidate, pruning_threshold, current_dimension_idx);
         InitPositionsArray<Q>(
             n_vectors, n_vectors_not_pruned, pruning_positions, pruning_threshold, pruning_distances
         );
-        // Record the initial n_vectors_not_pruned if requested
-        if (initial_not_pruned_out != nullptr) {
-            *initial_not_pruned_out = n_vectors_not_pruned;
-        }
+        // Record the initial n_vectors_not_pruned
+        initial_not_pruned_out = n_vectors_not_pruned;
         // Early exit if the only remaining point is the one that was initially the best candidate
         if (n_vectors_not_pruned == 1 && vector_indices[pruning_positions[0]] == prev_top_1) {
             n_vectors_not_pruned = 0;
@@ -152,6 +145,8 @@ class PDXearch {
         size_t cur_n_vectors_not_pruned = 0;
         size_t current_vertical_dimension = current_dimension_idx;
         size_t current_horizontal_dimension = 0;
+
+        // Go through the horizontal dimensions 64 at a time
         while (pdx_data.num_horizontal_dimensions && n_vectors_not_pruned &&
                current_horizontal_dimension < pdx_data.num_horizontal_dimensions) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
@@ -160,7 +155,7 @@ class PDXearch {
             for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                 size_t v_idx = pruning_positions[vector_idx];
                 size_t data_pos = offset_data + (v_idx * H_DIM_SIZE);
-                __builtin_prefetch(data + data_pos, 0, 2);
+                SKM_PREFETCH(data + data_pos, 0, 2);
             }
             size_t offset_query = pdx_data.num_vertical_dimensions + current_horizontal_dimension;
             for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
@@ -184,11 +179,10 @@ class PDXearch {
                 pruning_distances
             );
         }
-        // GO THROUGH THE REST IN THE VERTICAL
-        while (n_vectors_not_pruned && current_vertical_dimension < pdx_data.num_vertical_dimensions
-        ) {
+
+        // Go through all the remaining vertical dimensions which are stored in the horizontal layout
+        if (n_vectors_not_pruned && current_vertical_dimension < pdx_data.num_vertical_dimensions) {
             cur_n_vectors_not_pruned = n_vectors_not_pruned;
-            // !We have the data also in the Horizontal layout, so we go till the end
             size_t dimensions_left = pdx_data.num_vertical_dimensions - current_vertical_dimension;
             size_t offset_query = current_vertical_dimension;
             for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
@@ -196,7 +190,7 @@ class PDXearch {
                 auto data_pos = aux_vertical_dimensions_in_horizontal_layout +
                                 (v_idx * pdx_data.num_vertical_dimensions) +
                                 current_vertical_dimension;
-                __builtin_prefetch(data_pos, 0, 1);
+                SKM_PREFETCH(data_pos, 0, 1);
             }
             for (size_t vector_idx = 0; vector_idx < n_vectors_not_pruned; vector_idx++) {
                 size_t v_idx = pruning_positions[vector_idx];
@@ -220,8 +214,6 @@ class PDXearch {
                 pruning_threshold,
                 pruning_distances
             );
-            if (current_dimension_idx == pdx_data.num_dimensions)
-                break;
         }
     }
 
@@ -249,7 +241,6 @@ class PDXearch {
     /**
      * @brief Converts distances back to original domain (for u8 quantization).
      */
-    SKM_NO_INLINE
     void BuildResultSet(KNNCandidate_t& best_candidate) {
         // We return distances in the original domain
         if constexpr (q == Quantization::u8) {
@@ -261,11 +252,7 @@ class PDXearch {
 
   public:
     /**
-     * @brief Finds the nearest neighbor using partial distances from BLAS computation.
-     *
-     * This variant skips the warmup phase and directly uses pre-computed partial
-     * distances (e.g., from a BLAS matrix multiplication). Used in the hybrid
-     * BLAS+PDX approach where BLAS computes the first partial_d dimensions.
+     * @brief Finds the top-1 neighbor using partial distances from GEMM.
      *
      * @param query Query vector (in rotated space)
      * @param prev_pruning_threshold Initial distance threshold
@@ -274,10 +261,9 @@ class PDXearch {
      * @param computed_distance_until Number of dimensions already computed
      * @param start_cluster First cluster index to search
      * @param end_cluster One past the last cluster index to search
-     * @param initial_not_pruned_accum Optional accumulator for not-pruned statistics
+     * @param initial_not_pruned_accum Accumulator for not-pruned statistics
      * @return Best candidate found (index and distance)
      */
-    SKM_NO_INLINE
     KNNCandidate_t Top1PartialSearchWithThresholdAndPartialDistances(
         const float* SKM_RESTRICT query,
         const float prev_pruning_threshold,
@@ -286,7 +272,7 @@ class PDXearch {
         const uint32_t computed_distance_until,
         const size_t start_cluster,
         const size_t end_cluster,
-        size_t* initial_not_pruned_accum = nullptr
+        size_t& initial_not_pruned_accum
     ) {
         alignas(64) thread_local uint32_t pruning_positions[VECTOR_CHUNK_SIZE];
         DISTANCES_TYPE pruning_threshold = std::numeric_limits<DISTANCES_TYPE>::max();
@@ -299,7 +285,8 @@ class PDXearch {
         auto top_embedding = KNNCandidate<q>{};
         top_embedding.index = prev_top_1;
         top_embedding.distance = prev_pruning_threshold;
-        // PDXearch core
+
+        // Pruning core
         size_t data_offset = 0;
         for (size_t cluster_idx = start_cluster; cluster_idx < end_cluster; ++cluster_idx) {
             current_dimension_idx = computed_distance_until;
@@ -322,12 +309,10 @@ class PDXearch {
                 cluster.indices,
                 prev_top_1,
                 cluster.aux_vertical_dimensions_in_horizontal_layout,
-                &initial_not_pruned
+                initial_not_pruned
             );
             // Accumulate the initial not-pruned count for this cluster
-            if (initial_not_pruned_accum != nullptr) {
-                *initial_not_pruned_accum += initial_not_pruned;
-            }
+            initial_not_pruned_accum += initial_not_pruned;
             if (n_vectors_not_pruned) {
                 SetBestCandidate(
                     cluster.indices,
