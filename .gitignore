@@ -73,7 +73,16 @@ DartConfiguration.
 
 # Python
 __pycache__/
+*.ipynb
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+*.egg
+.eggs/
+.pytest_cache/
+.mypy_cache/
+*.so
 
 # Others
 Testing
