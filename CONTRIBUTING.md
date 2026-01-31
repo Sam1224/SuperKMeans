@@ -48,7 +48,7 @@ Tests are also prone to bugs. If that is the case, please open an Issue.
 
 ## Coding Style
 * Function, Class, and Struct names: `PascalCase`
-* Variable names: `snake_case`
+* Variables and Class/Struct member names: `snake_case`
 * Constants and magic variables: `UPPER_SNAKE_CASE`
 * Avoid `new` and `delete`
 * There is a `.clang-format` in the project. Make sure to adhere to it.

@@ -90,9 +90,9 @@ cd benchmarks
 
 We have a handful of `.sh` scripts under `./benchmarks` to reproduce the experiments of our publication. Below you will find each one of them and how to run it. 
 
-### Benchmarks List
+## Benchmarks List
 
-#### End-to-End
+### End-to-End
 Runs clustering with Super K-Means, FAISS K-Means and Scikit-Learn K-Means with the number of clusters fixed to $k= 4*\sqrt{N}$, and the number of iterations fixed to 25. For instance, for 1M vectors, $k=4000$. 
 
 **Output**: CSV file in `./benchmarks/results/default/end_to_end.csv` reporting construction time in milliseconds of each algorithm, and the `recall` that the centroids would yield when used for vector search tasks.
@@ -106,7 +106,7 @@ Runs clustering with Super K-Means, FAISS K-Means and Scikit-Learn K-Means with 
 - `dataset_id`: Identifier of the dataset you want to benchmark. You can run the benchmarks for many datasets at a time by separating the dataset IDs by a space.
 
 
-#### Varying $k$
+### Varying $k$
 Runs clustering with Super K-Means, FAISS K-Means and Scikit-Learn K-Means using different number of clusters per dataset (100, 1K, 10K, and 100K), and the number of iterations fixed to 25.
 
 **Output**: CSV file in `./benchmarks/results/default/varying_k.csv` reporting construction time in milliseconds of each algorithm.
@@ -116,7 +116,7 @@ Runs clustering with Super K-Means, FAISS K-Means and Scikit-Learn K-Means using
 ./varying_k.sh -b .. -p <python_path> <dataset_id>
 ```
 
-#### Early Termination
+### Early Termination
 Runs clustering with Super K-Means, FAISS K-Means and Scikit-Learn K-Means with the number of clusters fixed to $k= 4*\sqrt{N}$. In FAISS, we stop at 10 iterations. In Scikit-Learn, we stop at 300 iterations but activating the default `tolerance` parameter for early stopping. Finally, for Super K-Means, we use **Early Termination by Recall**, trying different tolerancy levels.
 
 **Output**: CSV file in `./benchmarks/results/default/early_termination.csv` reporting construction time in milliseconds of each algorithm and the `recall` that the centroids would yield when used for vector search tasks.
@@ -126,7 +126,7 @@ Runs clustering with Super K-Means, FAISS K-Means and Scikit-Learn K-Means with 
 ./early_termination.sh -b .. -p <python_path> <dataset_id>
 ```
 
-#### Sampling
+### Sampling
 Runs clustering with Super K-Means using different percentages of sampling (from 1% to 100%), with the number of clusters fixed to $k= 4*\sqrt{N}$, and the number of iterations fixed to 25. 
 
 **Output**: CSV file in `./benchmarks/results/default/sampling.csv` reporting construction time in milliseconds of each algorithm and the `recall` that the centroids would yield when used for vector search tasks.
@@ -137,7 +137,7 @@ Runs clustering with Super K-Means using different percentages of sampling (from
 ```
 
 
-#### Quality per Iteration
+### Quality per Iteration
 Runs clustering with Super K-Means using different iterations (from 1 to 10), with the number of clusters fixed to $k= 4*\sqrt{N}$.
 
 **Output**: CSV file in `./benchmarks/results/default/pareto.csv` reporting construction time in milliseconds of each algorithm and the `recall` that the centroids would yield when used for vector search tasks.
@@ -147,7 +147,7 @@ Runs clustering with Super K-Means using different iterations (from 1 to 10), wi
 ./pareto.sh -b .. <dataset_id>
 ```
 
-#### Profiling
+### Profiling
 
 **Output**: Console logs with the runtime and profiling. Non-persistent. 
 

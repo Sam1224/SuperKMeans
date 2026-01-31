@@ -58,7 +58,7 @@ brew install libomp
 BLAS is extremely important to achieve high performance. We recommend [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS). 
 
 ### Linux
-Most distributions come with [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS), or you may have already installed OpenBLAS via `apt`. **THIS IS SLOW**. We recommend installing OpenBLAS from source.
+Most distributions come with [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS), or you may have already installed OpenBLAS via `apt`. **THIS IS SLOW**. We recommend installing OpenBLAS from source with the commands below.
 
 ```sh
 git clone https://github.com/OpenMathLib/OpenBLAS.git
@@ -88,7 +88,7 @@ make
 pip install . -C cmake.args="-DBLAS_LIBRARIES=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework"
 ```
 
-### Super K-Means is slow even after installing OpenBlas from source in Linux
+### Super K-Means is slow even after installing OpenBLAS from source in Linux
 Try forcing the linking to the OpenBlas you just installed. For example:
 ```sh
 # C++

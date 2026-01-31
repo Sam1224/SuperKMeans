@@ -15,8 +15,13 @@ include(CTest)
 set(SKMEANS_COMPILE_TESTS ON CACHE BOOL "Whether to compile tests")
 set(SKMEANS_COMPILE_BENCHMARKS ON CACHE BOOL "Whether to compile benchmarks")
 set(SKMEANS_ENABLE_GPU OFF CACHE BOOL "Whether to use the GPU-based implementation of SuperKMeans")
+set(SKMEANS_BUILD_PYTHON OFF CACHE BOOL "Whether to build Python bindings")
+set(SKMEANS_COMPILE_EXAMPLES ON CACHE BOOL "Whether to compile examples")
 
 find_package(OpenMP REQUIRED)
+
+list(PREPEND CMAKE_PREFIX_PATH /usr/local)
+
 set(MKL_INTERFACE_FULL "intel_lp64")
 find_package(MKL CONFIG QUIET)
 if (MKL_FOUND)
@@ -67,4 +72,62 @@ if(SKMEANS_COMPILE_BENCHMARKS)
     add_subdirectory(benchmarks)
 else()
     message(STATUS "Benchmarks disabled")
+endif()
+
+if(SKMEANS_COMPILE_EXAMPLES)
+    message(STATUS "Compiling examples")
+    add_subdirectory(examples)
+endif()
+
+
+if(SKMEANS_BUILD_PYTHON)
+    message(STATUS "Python bindings enabled")
+
+    # Find Python and pybind11
+    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+    find_package(pybind11 CONFIG REQUIRED)
+
+    message(STATUS "Python executable: ${Python_EXECUTABLE}")
+    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+    message(STATUS "pybind11 found: ${pybind11_VERSION}")
+
+    # Create Python extension module
+    pybind11_add_module(_superkmeans
+        python/bindings/bindings.cpp
+    )
+
+    # Set include directories
+    target_include_directories(_superkmeans PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern
+    )
+
+    # Link against required libraries
+    if(MKL_FOUND)
+        target_link_libraries(_superkmeans PRIVATE ${MKL_COMMON_LIBS})
+    else()
+        target_link_libraries(_superkmeans PRIVATE ${BLAS_LINK_LIBRARIES})
+    endif()
+
+    # Link FFTW if available (float and OpenMP variants only)
+    if(FFTW_FLOAT_LIB_FOUND)
+        target_link_libraries(_superkmeans PRIVATE ${FFTW_FLOAT_LIB} ${FFTW_FLOAT_OPENMP_LIB})
+    endif()
+
+    # Set compiler flags
+    target_compile_options(_superkmeans PRIVATE
+        -Wall
+        $<$<CONFIG:Release>:-O3 -march=native>
+    )
+
+    # Set C++ standard
+    target_compile_features(_superkmeans PRIVATE cxx_std_17)
+
+    # Install the extension module
+    install(TARGETS _superkmeans
+        LIBRARY DESTINATION superkmeans
+        COMPONENT python
+    )
+else()
+    message(STATUS "Python bindings disabled")
 endif()

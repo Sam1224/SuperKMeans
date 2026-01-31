@@ -31,7 +31,7 @@ struct SuperKMeansConfig {
 
     // Convergence parameters
     float tol = 1e-4f;              // Tolerance for shift-based early termination
-    float recall_tol = 0.0025f;     // Tolerance for recall-based early termination
+    float recall_tol = 0.005f;     // Tolerance for recall-based early termination
     bool early_termination = true; // Whether to stop early on convergence
     bool sample_queries = false;        // Whether to sample queries from data
     size_t objective_k = 100;           // Number of nearest neighbors for recall computation

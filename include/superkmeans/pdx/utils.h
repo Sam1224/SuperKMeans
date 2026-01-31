@@ -28,6 +28,10 @@ class TicToc {
         auto end = std::chrono::high_resolution_clock::now();
         accum_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     }
+
+    double GetMilliseconds() const {
+        return accum_time / 1e6; // Convert nanoseconds to milliseconds
+    }
 };
 
 inline uint32_t CeilXToMultipleOfM(uint32_t x, uint32_t m) {

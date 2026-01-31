@@ -11,15 +11,15 @@
 </h3>
 
 <p align="center">
-        <img src="./benchmarks/results/plots/github_1.png" alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 150px}">
+        <img src="./benchmarks/results/plots/github_1.png" height=180 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
 </p>
 
 <h4 align="center">
-High number of clusters? No problem! SuperKMeans scales like charm
+High number of clusters? No problem! SuperKMeans scales like charm:
 </h4>
 
 <p align="center">
-        <img src="./benchmarks/results/plots/github_2.png" alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 150px}">
+        <img src="./benchmarks/results/plots/github_2.png" height=200 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
 </p>
 
 > [!IMPORTANT]
@@ -67,23 +67,28 @@ Then, you can use the `centroids` to create an IVF index for Vector Search, for 
 #include "superkmeans/superkmeans.h"
 
 int main(int argc, char* argv[]) {
-    std::vector<float> data;
+    std::vector<float> data; // Fill
     size_t k = 1000;
     size_t d = 768;
+    size_t n = 1000000;
     auto kmeans = skmeans::SuperKMeans(k, d);
     
     // Run the clustering
-    std::vector<float>  centroids = kmeans.Train(data.data(), data.size());
+    std::vector<float> centroids = kmeans.Train(data.data(), n);
     
     // Get assignments
-    auto assignments = kmeans._assignments
+    auto assignments = kmeans._assignments;
     
     // Or assign new points:
-    std::vector<float> new_data;
-    std::vector<uint32_t> assignments = kmeans.Assign(new_data.data(), new_data.size(), centroids.data(), centroids.size());
+    size_t new_data_n = 10;
+    std::vector<float> new_data; // Fill
+    std::vector<uint32_t> new_assignments = kmeans.Assign(new_data.data(), centroids.data(), new_data_n, k);
+
 }
 
 ```
+
+Check our [examples](./examples/) for a fully working C++ example.
 
 </details>
 
@@ -96,7 +101,7 @@ We provide Python bindings for ease of use.
 - A BLAS implementation
 - Python 3 (only for Python bindings)
 
-```sh
+```bash
 git clone https://github.com/lkuffo/SuperKMeans.git
 git submodule update --init
 pip install . 
@@ -112,13 +117,13 @@ python ./examples/simple_clustering.py 100000 10000 1536
 
 <summary>Compilation in C++</summary>
 
-```sh
+```bash
 git clone https://github.com/lkuffo/SuperKMeans.git
 git submodule update --init
 
 # Compile
 cmake .
-make simple_clustering.cpp
+make simple_clustering.out
 
 # Run plug-and-play example
 cd examples
