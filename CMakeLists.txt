@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 3.26)
 project(SuperKMeans)
 
+# Default to Release build if not specified
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (default: Release)" FORCE)
+endif()
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/extern/findFFTW")
@@ -15,7 +22,6 @@ include(CTest)
 set(SKMEANS_COMPILE_TESTS OFF CACHE BOOL "Whether to compile tests")
 set(SKMEANS_COMPILE_BENCHMARKS OFF CACHE BOOL "Whether to compile benchmarks")
 set(SKMEANS_ENABLE_GPU OFF CACHE BOOL "Whether to use the GPU-based implementation of SuperKMeans")
-set(SKMEANS_BUILD_PYTHON ON CACHE BOOL "Whether to build Python bindings")
 set(SKMEANS_COMPILE_EXAMPLES ON CACHE BOOL "Whether to compile examples")
 
 find_package(OpenMP REQUIRED)
@@ -35,6 +41,13 @@ if (MKL_FOUND)
 else()
     set(MKL_COMMON_LIBS "")
     message(STATUS "MKL not found. Trying to find a BLAS implementation")
+
+    # On macOS, prefer Apple's Accelerate framework over other BLAS implementations
+    if(APPLE)
+        set(BLA_VENDOR Apple)
+        message(STATUS "macOS detected: prioritizing Apple Accelerate framework")
+    endif()
+
     find_package(BLAS REQUIRED)
     message(STATUS "BLAS library found: ${BLAS_LIBRARIES}")
     add_definitions(-DEIGEN_USE_BLAS)
@@ -80,13 +93,12 @@ if(SKMEANS_COMPILE_EXAMPLES)
 endif()
 
 
-if(SKMEANS_BUILD_PYTHON)
+# Auto-detect Python bindings: only build if pybind11 is available
+find_package(Python COMPONENTS Interpreter Development.Module QUIET)
+find_package(pybind11 CONFIG QUIET)
+
+if(Python_FOUND AND pybind11_FOUND)
     message(STATUS "Python bindings enabled")
-
-    # Find Python and pybind11
-    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-    find_package(pybind11 CONFIG REQUIRED)
-
     message(STATUS "Python executable: ${Python_EXECUTABLE}")
     message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
     message(STATUS "pybind11 found: ${pybind11_VERSION}")
@@ -123,5 +135,5 @@ if(SKMEANS_BUILD_PYTHON)
         COMPONENT python
     )
 else()
-    message(STATUS "Python bindings disabled")
+    message(STATUS "Python bindings disabled (pybind11 not found)")
 endif()

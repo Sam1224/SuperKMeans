@@ -55,7 +55,6 @@ wheel.packages = ["python/superkmeans"]
 cmake.build-type = "Release"
 
 cmake.args = [
-    "-DSKMEANS_BUILD_PYTHON=ON",
     "-DSKMEANS_COMPILE_TESTS=OFF",
     "-DSKMEANS_COMPILE_BENCHMARKS=OFF",
     "-DSKMEANS_COMPILE_EXAMPLES=OFF"

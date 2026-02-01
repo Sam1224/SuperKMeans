@@ -111,6 +111,9 @@ python ./examples/simple_clustering.py 100000 1536 1000
 git clone https://github.com/lkuffo/SuperKMeans.git
 git submodule update --init
 
+# Set proper path to clang if needed
+export CXX="/usr/bin/clang++-18" 
+
 # Compile
 cmake .
 make simple_clustering.out

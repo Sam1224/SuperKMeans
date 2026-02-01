@@ -8,12 +8,11 @@ Looking for installation on GPU? We have an implementation (see `gpu_optimized` 
 - A BLAS implementation
 - Python 3 (only for Python bindings)
 
-> [!IMPORTANT]
-> A proper BLAS implementation is **EXTREMELY** important for performance. The pre-installed BLAS in your Linux distribution and OpenBLAS installed via `apt` are **SLOW**.
-
 Once you have these requirements, you can install Python Bindings or compile our [C++ example](./examples/) code.
 
-### Intalling Python Bindings
+<details>
+<summary> <b> Installing Python Bindings </b></summary>
+
 ```sh
 git clone https://github.com/lkuffo/SuperKMeans.git
 git submodule update --init
@@ -24,11 +23,54 @@ source venv/bin/activate
 
 pip install .
 ```
+</details>
+
+<details>
+<summary> <b> Compiling C++ Library </b></summary>
+
+```sh
+git clone https://github.com/lkuffo/SuperKMeans.git
+git submodule update --init
+
+# Set proper path to clang if needed
+export CXX="/usr/bin/clang++-18" 
+
+# Compile
+cmake .
+make simple_clustering.out
+```
+</details>
 
 ## Step by Step
+* [Installing Clang](#installing-clang)
+* [Installing CMake](#installing-cmake)
 * [Installing OpenMP](#installing-openmp)
 * [Installing BLAS](#installing-blas)
 * [Troubleshooting](#troubleshooting)
+
+## Installing Clang
+We recommend LLVM
+### Linux
+```sh 
+sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 18
+```
+
+### MacOS
+```sh 
+brew install llvm@18
+```
+
+## Installing CMake
+### Linux
+```sh 
+sudo apt update
+sudo apt install cmake
+```
+
+### MacOS
+```sh 
+brew install cmake
+```
 
 ## Installing OpenMP
 
