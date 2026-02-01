@@ -95,6 +95,7 @@ endif()
 
 # Auto-detect Python bindings: only build if pybind11 is available
 find_package(Python COMPONENTS Interpreter Development.Module QUIET)
+set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG QUIET)
 
 if(Python_FOUND AND pybind11_FOUND)

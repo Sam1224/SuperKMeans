@@ -8,8 +8,8 @@ cmake . -DSKMEANS_COMPILE_BENCHMARKS=ON
 
 ## Prerequisites (CPU)
 
-### OpenMP and a BLAS implementation 
-Check [INSTALL.md](./INSTALL.md#installing-openmp). A proper BLAS implementation is **EXTREMELY** important for performance.
+### Clang, CMake, OpenMP and a BLAS implementation 
+Check [INSTALL.md](./INSTALL.md). 
 
 > [!IMPORTANT]
 > A proper BLAS implementation is **EXTREMELY** important for performance. The pre-installed BLAS in your Linux distribution and OpenBLAS installed via `apt` are **SLOW**.

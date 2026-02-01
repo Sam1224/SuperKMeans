@@ -93,6 +93,7 @@ We provide Python bindings for ease of use.
 
 ```bash
 git clone https://github.com/lkuffo/SuperKMeans.git
+cd SuperKMeans
 git submodule update --init
 pip install .
 
@@ -109,6 +110,7 @@ python ./examples/simple_clustering.py 100000 1536 1000
 
 ```bash
 git clone https://github.com/lkuffo/SuperKMeans.git
+cd SuperKMeans
 git submodule update --init
 
 # Set proper path to clang if needed

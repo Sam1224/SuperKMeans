@@ -15,6 +15,7 @@ Once you have these requirements, you can install Python Bindings or compile our
 
 ```sh
 git clone https://github.com/lkuffo/SuperKMeans.git
+cd SuperKMeans
 git submodule update --init
 
 # Create a venv if needed
@@ -30,6 +31,7 @@ pip install .
 
 ```sh
 git clone https://github.com/lkuffo/SuperKMeans.git
+cd SuperKMeans
 git submodule update --init
 
 # Set proper path to clang if needed
@@ -64,6 +66,7 @@ brew install llvm@18
 ### Linux
 ```sh 
 sudo apt update
+sudo apt install make
 sudo apt install cmake
 ```
 
@@ -96,8 +99,8 @@ Most distributions come with [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)
 ```sh
 git clone https://github.com/OpenMathLib/OpenBLAS.git
 cd OpenBLAS
-make DYNAMIC_ARCH=1 USE_OPENMP=1 NUM_THREADS=128
-make PREFIX=/usr/local install
+make -j$(nproc) DYNAMIC_ARCH=1 USE_OPENMP=1 NUM_THREADS=128
+make -j$(nproc) PREFIX=/usr/local install
 ldconfig
 ```
 
