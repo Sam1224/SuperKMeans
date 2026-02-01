@@ -8,6 +8,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
+import h5py
 
 
 def get_default_n_clusters(n):
@@ -38,6 +39,35 @@ def get_ground_truth_path(dataset):
     return GROUND_TRUTH_DIR / f'{dataset}.json'
 
 
+def l2_normalize(x, eps=1e-12):
+    """Normalize vectors to unit length using L2 norm.
+
+    Args:
+        x: Input array of shape (n, d)
+        eps: Small epsilon to avoid division by zero
+
+    Returns:
+        L2-normalized array of same shape
+    """
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    return x / np.maximum(norms, eps)
+
+
+def read_hdf5_data(raw_data_path, dataset_hdf5_name):
+    """Read train and test data from HDF5 file.
+
+    Args:
+        raw_data_path: Path to directory containing HDF5 files
+        dataset_hdf5_name: Name of HDF5 file (without .hdf5 extension)
+
+    Returns:
+        Tuple of (train, test) numpy arrays as float32
+    """
+    hdf5_file_name = os.path.join(raw_data_path, dataset_hdf5_name + ".hdf5")
+    hdf5_file = h5py.File(hdf5_file_name, "r")
+    return np.array(hdf5_file["train"], dtype=np.float32), np.array(hdf5_file["test"], dtype=np.float32)
+
+
 # Dataset configurations: name -> (num_vectors, num_dimensions)
 DATASET_PARAMS = {
     "fmnist": (60_000, 784),
@@ -59,8 +89,26 @@ DATASET_PARAMS = {
 
 # Datasets that should use angular/spherical k-means
 ANGULAR_DATASETS = [
-    "yandex", "glove200", "glove100", "glove50", "llama"
+    "yandex", "glove200", "glove100", "glove50", "llama", "yi", "contriever"
 ]
+
+# Mapping from dataset identifier to HDF5 filename (without .hdf5 extension)
+DATASET_HDF5_NAMES = {
+    "glove200": "glove-200-angular",
+    "clip": "imagenet-clip-512-normalized",
+    "yahoo": "yahoo-minilm-384-normalized",
+    "llama": "llama-128-ip",
+    "yi": "yi-128-ip",
+    "yandex": "yandex-200-cosine",
+    "mxbai": "agnews-mxbai-1024-euclidean",
+    "openai": "openai-1536-angular",
+    "arxiv": "instructorxl-arxiv-768",
+    "sift": "sift-128-euclidean",
+    "fmnist": "fashion-mnist-784-euclidean",
+    "gist": "gist-960-euclidean",
+    "contriever": "contriever-768",
+    "wiki": "simplewiki-openai-3072-normalized",
+}
 
 # Standard exploration fractions for recall computation
 EXPLORE_FRACTIONS = [

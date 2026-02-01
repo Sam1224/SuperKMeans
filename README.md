@@ -116,7 +116,7 @@ export CXX="/usr/bin/clang++-18"
 
 # Compile
 cmake .
-make
+make examples
 
 # Run plug-and-play example
 cd examples
