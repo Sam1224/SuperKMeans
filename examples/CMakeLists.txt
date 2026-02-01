@@ -9,3 +9,9 @@ endif()
 
 add_executable(simple_clustering.out simple_clustering.cpp)
 target_link_libraries(simple_clustering.out PRIVATE ${EXAMPLES_COMMON_LIBS})
+
+# Custom target to build all examples with 'make examples'
+add_custom_target(examples
+    DEPENDS
+        simple_clustering.out
+)

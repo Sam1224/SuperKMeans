@@ -11,7 +11,7 @@
 </h3>
 
 <p align="center">
-        <img src="./benchmarks/results/plots/github_1.png" height=210 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
+        <img src="./benchmarks/results/plots/github_1.png" height=220 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
 </p>
 
 <h4 align="center">
@@ -19,7 +19,7 @@ High number of clusters? No problem! SuperKMeans scales like charm:
 </h4>
 
 <p align="center">
-        <img src="./benchmarks/results/plots/github_2.png" height=220 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
+        <img src="./benchmarks/results/plots/github_2.png" height=230 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
 </p>
 
 > [!IMPORTANT]
@@ -116,7 +116,7 @@ export CXX="/usr/bin/clang++-18"
 
 # Compile
 cmake .
-make simple_clustering.out
+make
 
 # Run plug-and-play example
 cd examples

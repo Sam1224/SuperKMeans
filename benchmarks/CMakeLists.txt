@@ -97,3 +97,20 @@ target_link_libraries(microbenchmark_flip_sign.out PRIVATE ${BENCH_COMMON_LIBS})
 # Microbenchmark for Horizontal L2 distance kernels
 add_executable(microbenchmark_horizontal_kernels.out microbenchmarks/microbenchmark_horizontal_kernels.cpp)
 target_link_libraries(microbenchmark_horizontal_kernels.out PRIVATE ${BENCH_COMMON_LIBS})
+
+add_custom_target(benchmarks
+    DEPENDS
+        end_to_end_superkmeans.out
+        end_to_end_faiss.out
+        varying_k_superkmeans.out
+        varying_k_faiss.out
+        early_termination_superkmeans.out
+        early_termination_faiss.out
+        sampling_superkmeans.out
+        pareto_superkmeans.out
+        ad_hoc_superkmeans.out
+        sweet_pruning_spot_superkmeans.out
+        microbenchmark_init_positions_array.out
+        microbenchmark_flip_sign.out
+        microbenchmark_horizontal_kernels.out
+)

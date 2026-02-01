@@ -52,3 +52,13 @@ gtest_discover_tests(test_superkmeans.out)
 gtest_discover_tests(test_wcss.out)
 gtest_discover_tests(test_distance_computers.out)
 gtest_discover_tests(test_pdx_layout.out)
+
+add_custom_target(tests
+    DEPENDS
+        test_rotation.out
+        test_assign.out
+        test_superkmeans.out
+        test_wcss.out
+        test_distance_computers.out
+        test_pdx_layout.out
+)

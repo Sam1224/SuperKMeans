@@ -4,7 +4,7 @@ We provide a set of benchmarks to reproduce every result of our VLDB'26 publicat
 
 ```bash
 cmake . -DSKMEANS_COMPILE_BENCHMARKS=ON
-make
+make benchmarks
 ```
 
 In the future, we plan to add a proper benchmarking framework for development.
@@ -21,7 +21,7 @@ Check [INSTALL.md](./INSTALL.md#installing-openmp)
 Our CMake will install FAISS for you. However, you need to set the proper optimization flag. For example, with a machine that supports AVX512 you shall do:
 ```bash
 cmake .  -DFAISS_OPT_LEVEL="avx512" -DSKMEANS_COMPILE_BENCHMARKS=ON
-make 
+make benchmarks
 ```
 
 Some common flags:
@@ -84,7 +84,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Compile the benchmarks:
 ```bash
 cmake . -DSKMEANS_COMPILE_BENCHMARKS=ON -DFAISS_OPT_LEVEL="<opt_level>"
-make 
+make benchmarks
 cd benchmarks
 ```
 
@@ -154,6 +154,6 @@ Runs clustering with Super K-Means using different iterations (from 1 to 10), wi
 **Command (assuming `pwd` is `./benchmarks`)**
 
 ```sh
-make ad_hoc_superkmeans.cpp
+make ad_hoc_superkmeans.out
 ./ad_hoc_superkmeans <dataset_id>
 ```

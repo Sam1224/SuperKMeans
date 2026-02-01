@@ -4,15 +4,18 @@ We are actively developing Super K-Means and accepting contributions! Any kind o
 
 These are our current priorities:
 
-**Improvements**:
-- Support `uint64_t` for the `assignments`. Right now, we are limited to ~4 billion vectors.
-- A proper benchmarking framework for development.
-- GitHub CI tests
-- Regression tests on CI
-
 **Features**:
+- Support `uint64_t` for the `assignments`. Right now, we are limited to ~4 billion vectors.
 - Hierarchical K-Means 
 - Support for different datatypes: 64-bit `double`, 16-bit `half`, 8-bit `uint8` (experimental).
+- Support for out-of-core capabilities
+
+**Improvements**:
+- A proper benchmarking framework for development.
+- GitHub CI tests.
+- Regression tests on CI.
+- A `.clang-tidy`.
+
 
 ## Getting Started
 
@@ -33,6 +36,8 @@ git checkout -b my-feature
 All PRs must pass the full test suite in CI. Before submitting a PR, you should run tests locally:
 
 ```bash
+cmake . -DSKMEANS_COMPILE_TESTS=ON
+make tests
 ctest .
 ```
 
@@ -50,7 +55,11 @@ Tests are also prone to bugs. If that is the case, please open an Issue.
 * Variables and Class/Struct member names: `snake_case`
 * Constants and magic variables: `UPPER_SNAKE_CASE`
 * Avoid `new` and `delete`
-* There is a `.clang-format` in the project. Make sure to adhere to it.
+* There is a `.clang-format` in the project. Make sure to adhere to it. We have provided scripts to check and format the files within the project:
+```bash
+./scripts/format_check.sh   # Checks the formatting
+./scripts/format.sh         # Fix the formatting
+```
 
 ## Communication
 

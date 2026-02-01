@@ -37,7 +37,7 @@ export CXX="/usr/bin/clang++-18"
 
 # Compile
 cmake .
-make simple_clustering.out
+make
 ```
 </details>
 
