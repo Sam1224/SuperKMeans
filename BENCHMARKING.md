@@ -18,7 +18,7 @@ Check [INSTALL.md](./INSTALL.md).
 Our CMake will install FAISS for you. However, you need to set the proper optimization flag. For example, with a machine that supports AVX512 you shall do:
 ```bash
 cmake .  -DFAISS_OPT_LEVEL="avx512" -DSKMEANS_COMPILE_BENCHMARKS=ON
-make benchmarks
+make -j$(nproc) benchmarks
 ```
 
 Some common flags:
@@ -73,12 +73,6 @@ python setup_data.py [--data-dir <data_dir>] <dataset>
 For `cohere`, the script will download the data for you.
 
 </details>
-
-### Installing `uv`
-We use `uv` to simplify dependency installation. You can install it by doing:
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
 
 ## Compiling and Running Benchmarks
 

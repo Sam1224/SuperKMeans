@@ -59,7 +59,7 @@ if (FFTW_FLOAT_LIB_FOUND)
     add_definitions(-DHAS_FFTW)
     include_directories(${FFTW_INCLUDE_DIRS})
 else()
-    message(WARNING "FFTW (+float capabilities) not found, we recommend you install it")
+    message(STATUS "FFTW (+float capabilities) not found")
 endif()
 
 if(SKMEANS_ENABLE_GPU)

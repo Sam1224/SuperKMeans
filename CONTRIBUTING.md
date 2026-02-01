@@ -37,7 +37,7 @@ All PRs must pass the full test suite in CI. Before submitting a PR, you should 
 
 ```bash
 cmake . -DSKMEANS_COMPILE_TESTS=ON
-make tests
+make -j$(nproc) tests
 ctest .
 ```
 

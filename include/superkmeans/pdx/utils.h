@@ -60,6 +60,7 @@ inline bool IsPowerOf2(const uint32_t x) {
  * Creates n_samples data points distributed around n_centers cluster centers.
  * Each center is randomly generated, and points are sampled from a Gaussian
  * distribution around their assigned center.
+ * TODO(lkuffo, high): This function is extremely slow. Needs refactoring.
  *
  * @param n_samples Number of samples to generate
  * @param n_features Dimensionality of each sample

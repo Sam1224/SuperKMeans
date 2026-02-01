@@ -112,6 +112,22 @@ ldconfig
 
 ## Troubleshooting
 
+### Python bindings installation fails
+
+Error:
+```
+Could NOT find Python (missing: Development.Module) 
+    Reason given by package:
+        Development: Cannot find the directory "/usr/include/python3.12"
+```
+
+Solution: Install `python-dev` package:
+
+```sh
+sudo apt install python3-dev
+```
+
+
 ### Super K-Means is slow on my Apple Silicon
 If you previously installed OpenBLAS in your machine, the installation may be linking to OpenBLAS instead of Apple Accelerate. You can try forcing the linking of Apple Accelerate: 
 
@@ -153,6 +169,8 @@ You can install OpenBLAS for a specific CPU instead of using `DYNAMIC_ARCH=1`. T
 
 These are some commands for common CPUs:
 ```sh
+make clean
+
 # Intel Sapphire Rapids, Emerald Rapids, Granite Rapids
 # Code-named in AWS as r8i, r7i
 make TARGET=SAPPHIRERAPIDS DYNAMIC_ARCH=0 USE_OPENMP=1 NUM_THREADS=128
