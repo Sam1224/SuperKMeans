@@ -82,7 +82,6 @@ inline std::vector<float> MakeBlobs(
     std::mt19937 gen(random_state);
     std::normal_distribution<float> center_dist(0.0f, center_spread);
 
-    // Flatten centers to single allocation for better cache locality
     std::vector<float> centers(n_centers * n_features);
     for (size_t i = 0; i < n_centers * n_features; ++i) {
         centers[i] = center_dist(gen);
@@ -96,21 +95,17 @@ inline std::vector<float> MakeBlobs(
         size_t center_idx = cluster_dist(gen) * n_features;
         float* row = &data[i * n_features];
         const float* center = &centers[center_idx];
-
         for (size_t j = 0; j < n_features; ++j) {
             row[j] = center[j] + point_dist(gen);
         }
     }
-
     if (normalize) {
         for (size_t i = 0; i < n_samples; ++i) {
             float* row = &data[i * n_features];
             float norm_sq = 0.0f;
-
             for (size_t j = 0; j < n_features; ++j) {
                 norm_sq += row[j] * row[j];
             }
-
             float inv_norm = 1.0f / std::sqrt(norm_sq);
             for (size_t j = 0; j < n_features; ++j) {
                 row[j] *= inv_norm;
