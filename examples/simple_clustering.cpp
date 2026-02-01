@@ -47,18 +47,8 @@ int main(int argc, char* argv[]) {
     timer.Toc();
 
     double construction_time_ms = timer.GetMilliseconds();
-    double wcss = kmeans.iteration_stats.back().objective;
     std::cout << "Index built in: " << construction_time_ms << " ms" << std::endl;
-    std::cout << "WCSS: " << wcss << std::endl;
 
     // Get assignments
-    auto assignments = kmeans._assignments;
-
-    // Or assign new points:
-    size_t n_new = 2;
-    std::vector<float> new_data = skmeans::MakeBlobs(n_new, d, 100);
-    std::vector<uint32_t> new_assignments = kmeans.Assign(new_data.data(), centroids.data(), n_new, k);
-    std::cout << "Assigning " << n_new << " vectors to the centroids" << std::endl;
-    std::cout << "[0] -> " << new_assignments[0] << std::endl;
-    std::cout << "[1] -> " << new_assignments[1] << std::endl;
+    std::vector<uint32_t> assignments = kmeans.Assign(data.data(), centroids.data(), n, k);
 }

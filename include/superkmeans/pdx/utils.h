@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "superkmeans/distance_computers/scalar_computers.h"
+
 namespace skmeans {
 
 class TicToc {
@@ -149,12 +151,7 @@ inline std::vector<float> GenerateRandomVectors(
  * @return Squared L2 distance
  */
 inline float ComputeL2DistanceSquared(const float* a, const float* b, size_t d) {
-    float dist = 0.0f;
-    for (size_t i = 0; i < d; ++i) {
-        float diff = a[i] - b[i];
-        dist += diff * diff;
-    }
-    return dist;
+    return ScalarComputer<DistanceFunction::l2, Quantization::f32>::Horizontal(a, b, d);
 }
 
 /**

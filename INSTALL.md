@@ -11,27 +11,18 @@ Looking for installation on GPU? We have an implementation (see `gpu_optimized` 
 > [!IMPORTANT]
 > A proper BLAS implementation is **EXTREMELY** important for performance. The pre-installed BLAS in your Linux distribution and OpenBLAS installed via `apt` are **SLOW**.
 
-Once you have these requirements, you can install Python Bindings or compile our C++ example code.
+Once you have these requirements, you can install Python Bindings or compile our [C++ example](./examples/) code.
 
-### Python Bindings
-```sh
-git clone https://github.com/lkuffo/SuperKMeans.git
-git submodule update --init
-pip install . 
-```
-
-### C++ Example
+### Intalling Python Bindings
 ```sh
 git clone https://github.com/lkuffo/SuperKMeans.git
 git submodule update --init
 
-# Compile
-cmake . 
-make simple_example.cpp
+# Create a venv if needed
+python -m venv ./venv
+source venv/bin/activate
 
-# Run
-cd examples
-./simple_example
+pip install .
 ```
 
 ## Step by Step
@@ -85,7 +76,7 @@ cmake . -DBLAS_LIBRARIES=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/Sys
 make 
 
 # Python Installation
-pip install . -C cmake.args="-DBLAS_LIBRARIES=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework"
+pip install --force-reinstall . -C cmake.args="-DBLAS_LIBRARIES=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework"
 ```
 
 ### Super K-Means is slow even after installing OpenBLAS from source in Linux
@@ -96,7 +87,7 @@ cmake . -DBLAS_LIBRARIES=/usr/local/lib/libopenblas_neoversev2p-r0.3.31.dev.so
 make 
 
 # Python Installation
-pip install . -C cmake.args="-DBLAS_LIBRARIES=/usr/local/lib/libopenblas_neoversev2p-r0.3.31.dev.so"
+pip install --force-reinstall . -C cmake.args="-DBLAS_LIBRARIES=/usr/local/lib/libopenblas_neoversev2p-r0.3.31.dev.so"
 ```
 
 Note that the name of the `.so` library changes if you target a specific CPU or use `DYNAMIC_ARCH=1`. You might want to verify its name by looking into the `/usr/local/lib` directory.
@@ -109,7 +100,7 @@ We detect IntelMKL automatically. For AMD AOCL BLIS, you can force the linking b
 cmake . -DBLAS_LIBRARIES=/opt/amd-blis/lib/libblis-mt.so
 
 # Python Installation
-pip install . -C cmake.args="-DBLAS_LIBRARIES=/opt/amd-blis/lib/libblis-mt.so"
+pip install --force-reinstall . -C cmake.args="-DBLAS_LIBRARIES=/opt/amd-blis/lib/libblis-mt.so"
 ```
 
 ### OpenBLAS binaries are too large. What can I do?

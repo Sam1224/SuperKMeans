@@ -12,10 +12,10 @@ include(CheckCXXCompilerFlag)
 include(CMakePrintHelpers)
 include(CTest)
 
-set(SKMEANS_COMPILE_TESTS ON CACHE BOOL "Whether to compile tests")
-set(SKMEANS_COMPILE_BENCHMARKS ON CACHE BOOL "Whether to compile benchmarks")
+set(SKMEANS_COMPILE_TESTS OFF CACHE BOOL "Whether to compile tests")
+set(SKMEANS_COMPILE_BENCHMARKS OFF CACHE BOOL "Whether to compile benchmarks")
 set(SKMEANS_ENABLE_GPU OFF CACHE BOOL "Whether to use the GPU-based implementation of SuperKMeans")
-set(SKMEANS_BUILD_PYTHON OFF CACHE BOOL "Whether to build Python bindings")
+set(SKMEANS_BUILD_PYTHON ON CACHE BOOL "Whether to build Python bindings")
 set(SKMEANS_COMPILE_EXAMPLES ON CACHE BOOL "Whether to compile examples")
 
 find_package(OpenMP REQUIRED)
@@ -96,34 +96,28 @@ if(SKMEANS_BUILD_PYTHON)
         python/bindings/bindings.cpp
     )
 
-    # Set include directories
     target_include_directories(_superkmeans PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/extern
     )
 
-    # Link against required libraries
     if(MKL_FOUND)
         target_link_libraries(_superkmeans PRIVATE ${MKL_COMMON_LIBS})
     else()
         target_link_libraries(_superkmeans PRIVATE ${BLAS_LINK_LIBRARIES})
     endif()
 
-    # Link FFTW if available (float and OpenMP variants only)
     if(FFTW_FLOAT_LIB_FOUND)
         target_link_libraries(_superkmeans PRIVATE ${FFTW_FLOAT_LIB} ${FFTW_FLOAT_OPENMP_LIB})
     endif()
 
-    # Set compiler flags
     target_compile_options(_superkmeans PRIVATE
         -Wall
         $<$<CONFIG:Release>:-O3 -march=native>
     )
 
-    # Set C++ standard
     target_compile_features(_superkmeans PRIVATE cxx_std_17)
 
-    # Install the extension module
     install(TARGETS _superkmeans
         LIBRARY DESTINATION superkmeans
         COMPONENT python

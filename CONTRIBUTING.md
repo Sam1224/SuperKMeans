@@ -5,9 +5,8 @@ We are actively developing Super K-Means and accepting contributions! Any kind o
 These are our current priorities:
 
 **Improvements**:
-- Change `.Train()`, `.Assign()` API to work with `std::vector` or `std::span` rather than pointers.
-- A proper benchmarking framework for development.
 - Support `uint64_t` for the `assignments`. Right now, we are limited to ~4 billion vectors.
+- A proper benchmarking framework for development.
 - GitHub CI tests
 - Regression tests on CI
 

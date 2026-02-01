@@ -56,7 +56,7 @@ TEST_F(AssignTest, AssignMatchesTrainAssignments_SyntheticClusters) {
  *
  */
 TEST_F(AssignTest, EachPointAssignedToNearestCentroid) {
-    const size_t n = 10000;  // Smaller n for brute-force verification
+    const size_t n = 10000;
     const size_t d = 64;
     const size_t n_clusters = 100;
     const int n_iters = 10;

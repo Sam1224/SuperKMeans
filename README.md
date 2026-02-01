@@ -7,11 +7,11 @@
 <!-- </div> -->
 </h1>
 <h3 align="center">
-  The fastest clustering library for high-dimensional vector embeddings
+  A super fast clustering library for high-dimensional vector embeddings
 </h3>
 
 <p align="center">
-        <img src="./benchmarks/results/plots/github_1.png" height=180 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
+        <img src="./benchmarks/results/plots/github_1.png" height=210 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
 </p>
 
 <h4 align="center">
@@ -19,7 +19,7 @@ High number of clusters? No problem! SuperKMeans scales like charm:
 </h4>
 
 <p align="center">
-        <img src="./benchmarks/results/plots/github_2.png" height=200 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
+        <img src="./benchmarks/results/plots/github_2.png" height=220 alt="SuperKMeans vs FAISS and Scikit Learn" style="{max-height: 100px}">
 </p>
 
 > [!IMPORTANT]
@@ -48,11 +48,7 @@ kmeans = SuperKMeans(
 centroids = kmeans.train(data) # 2D array with centroids (k x d) 
 
 # Get assignments
-assignments = kmeans._assignments
-
-# Or assign new points:
-new_data = ...
-new_assignments = kmeans.assign(new_data)
+assignments = kmeans.assign(data)
 ```
 
 Then, you can use the `centroids` to create an IVF index for Vector Search, for example, in FAISS.
@@ -76,14 +72,8 @@ int main(int argc, char* argv[]) {
     // Run the clustering
     std::vector<float> centroids = kmeans.Train(data.data(), n);
     
-    // Get assignments
-    auto assignments = kmeans._assignments;
-    
-    // Or assign new points:
-    size_t new_data_n = 10;
-    std::vector<float> new_data; // Fill
-    std::vector<uint32_t> new_assignments = kmeans.Assign(new_data.data(), centroids.data(), new_data_n, k);
-
+    // Assign points
+    std::vector<uint32_t> assignments = kmeans.Assign(data.data(), centroids.data(), n, k);
 }
 
 ```
@@ -104,13 +94,13 @@ We provide Python bindings for ease of use.
 ```bash
 git clone https://github.com/lkuffo/SuperKMeans.git
 git submodule update --init
-pip install . 
+pip install .
 
 # Run plug-and-play example
 python ./examples/simple_clustering.py
 
-# Set a value for n, k and d
-python ./examples/simple_clustering.py 100000 10000 1536
+# Set a value for n, d and k
+python ./examples/simple_clustering.py 100000 1536 1000
 ```
 
 <details>
@@ -129,8 +119,8 @@ make simple_clustering.out
 cd examples
 ./simple_clustering.out
 
-# Set a value for n, k and d
-./simple_clustering.out 100000 10000 1536
+# Set a value for n, d and k
+./simple_clustering.out 100000 1536 1000
 ```
 </details>
 
