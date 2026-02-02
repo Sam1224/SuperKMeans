@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <omp.h>
 #include <random>
 #include <utility>
 #include <vector>
@@ -91,6 +92,7 @@ inline std::vector<float> MakeBlobs(
     std::normal_distribution<float> point_dist(0.0f, cluster_std);
 
     std::vector<float> data(n_samples * n_features);
+#pragma omp parallel for
     for (size_t i = 0; i < n_samples; ++i) {
         size_t center_idx = cluster_dist(gen) * n_features;
         float* row = &data[i * n_features];
@@ -100,6 +102,7 @@ inline std::vector<float> MakeBlobs(
         }
     }
     if (normalize) {
+#pragma omp parallel for
         for (size_t i = 0; i < n_samples; ++i) {
             float* row = &data[i * n_features];
             float norm_sq = 0.0f;
@@ -166,6 +169,7 @@ inline float ComputeL2DistanceSquared(const float* a, const float* b, size_t d) 
  */
 inline std::vector<float> ComputeNorms(const float* data, size_t n, size_t d) {
     std::vector<float> norms(n);
+#pragma omp parallel for
     for (size_t i = 0; i < n; ++i) {
         float norm = 0.0f;
         for (size_t j = 0; j < d; ++j) {
@@ -239,6 +243,7 @@ inline void FindKNearestNeighborsBruteForce(
 ) {
     std::vector<std::pair<float, uint32_t>> distances(n_y);
     for (size_t i = 0; i < n_x; ++i) {
+#pragma omp parallel for
         for (size_t j = 0; j < n_y; ++j) {
             float dist = 0.0f;
             for (size_t dim = 0; dim < d; ++dim) {

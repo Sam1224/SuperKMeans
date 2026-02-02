@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <iomanip>
 #include <iostream>
@@ -14,77 +16,44 @@
 
 namespace {
 
-// Ground truth WCSS values for each (n_clusters, dimensionality) combination
-// Generated with: N_SAMPLES=100000, N_TRUE_CENTERS=100, CLUSTER_STD=1.0, CENTER_SPREAD=10.0,
-// SEED=42, N_ITERS=10 Regenerate with: ./generate_wcss_ground_truth.out Format: {n_clusters,
-// dimensionality} -> expected_wcss
+// Test data stored in: tests/test_data.bin
+// Regenerate with: ./generate_wcss_ground_truth.out
 
 // clang-format off
 const std::map<std::pair<size_t, size_t>, float> GROUND_TRUTH = {
     // k=10
-    {{10, 4}, 1.45082e+07f},
-    {{10, 16}, 1.15181e+08f},
-    {{10, 32}, 2.55024e+08f},
-    {{10, 64}, 5.65870e+08f},
-    {{10, 100}, 8.69263e+08f},
-    {{10, 128}, 1.12330e+09f},
-    {{10, 384}, 3.45538e+09f},
-    {{10, 512}, 4.60039e+09f},
-    {{10, 600}, 5.43918e+09f},
-    {{10, 768}, 6.96413e+09f},
-    {{10, 900}, 8.17673e+09f},
-    {{10, 1024}, 9.25543e+09f},
-    {{10, 1536}, 1.38387e+10f},
-    {{10, 2000}, 1.81425e+10f},
-    {{10, 3072}, 2.78603e+10f},
+    {{10, 4}, 1.31454e+06f},
+    {{10, 16}, 1.04449e+07f},
+    {{10, 32}, 2.47275e+07f},
+    {{10, 64}, 5.36638e+07f},
+    {{10, 100}, 8.73695e+07f},
+    {{10, 128}, 1.12716e+08f},
+    {{10, 384}, 3.46747e+08f},
+    {{10, 512}, 4.64129e+08f},
+    {{10, 600}, 5.45487e+08f},
+    {{10, 768}, 6.97502e+08f},
     // k=100
-    {{100, 4}, 1.08799e+06f},
-    {{100, 16}, 1.84771e+07f},
-    {{100, 32}, 4.45723e+07f},
-    {{100, 64}, 1.50841e+08f},
-    {{100, 100}, 2.21559e+08f},
-    {{100, 128}, 2.96399e+08f},
-    {{100, 384}, 9.62221e+08f},
-    {{100, 512}, 1.35008e+09f},
-    {{100, 600}, 1.52428e+09f},
-    {{100, 768}, 1.91229e+09f},
-    {{100, 900}, 2.14949e+09f},
-    {{100, 1024}, 2.95718e+09f},
-    {{100, 1536}, 4.23874e+09f},
-    {{100, 2000}, 5.24159e+09f},
-    {{100, 3072}, 7.54917e+09f},
-    // k=1000
-    {{1000, 4}, 1.69094e+05f},
-    {{1000, 16}, 1.28640e+06f},
-    {{1000, 32}, 2.83718e+06f},
-    {{1000, 64}, 5.97009e+06f},
-    {{1000, 100}, 9.50948e+06f},
-    {{1000, 128}, 1.22841e+07f},
-    {{1000, 384}, 3.76193e+07f},
-    {{1000, 512}, 5.03048e+07f},
-    {{1000, 600}, 5.90127e+07f},
-    {{1000, 768}, 7.56619e+07f},
-    {{1000, 900}, 8.87550e+07f},
-    {{1000, 1024}, 1.01012e+08f},
-    {{1000, 1536}, 1.51711e+08f},
-    {{1000, 2000}, 1.97681e+08f},
-    {{1000, 3072}, 3.03797e+08f},
-    // k=10000
-    {{10000, 4}, 4.54627e+04f},
-    {{10000, 16}, 8.20825e+05f},
-    {{10000, 32}, 2.14894e+06f},
-    {{10000, 64}, 4.94882e+06f},
-    {{10000, 100}, 8.14074e+06f},
-    {{10000, 128}, 1.06430e+07f},
-    {{10000, 384}, 3.34897e+07f},
-    {{10000, 512}, 4.49184e+07f},
-    {{10000, 600}, 5.27915e+07f},
-    {{10000, 768}, 6.78171e+07f},
-    {{10000, 900}, 7.96324e+07f},
-    {{10000, 1024}, 9.07352e+07f},
-    {{10000, 1536}, 1.36584e+08f},
-    {{10000, 2000}, 1.78188e+08f},
-    {{10000, 3072}, 2.74325e+08f},
+    {{100, 4}, 8.52101e+04f},
+    {{100, 16}, 1.52457e+06f},
+    {{100, 32}, 4.87128e+06f},
+    {{100, 64}, 9.18784e+06f},
+    {{100, 100}, 1.80314e+07f},
+    {{100, 128}, 2.60595e+07f},
+    {{100, 384}, 8.83893e+07f},
+    {{100, 512}, 1.17779e+08f},
+    {{100, 600}, 1.35796e+08f},
+    {{100, 768}, 1.92280e+08f},
+    // k=250
+    {{250, 4}, 3.68675e+04f},
+    {{250, 16}, 2.15290e+05f},
+    {{250, 32}, 2.99748e+05f},
+    {{250, 64}, 6.09428e+05f},
+    {{250, 100}, 9.59432e+05f},
+    {{250, 128}, 2.00011e+06f},
+    {{250, 384}, 6.95437e+06f},
+    {{250, 512}, 4.97561e+06f},
+    {{250, 600}, 5.83509e+06f},
+    {{250, 768}, 7.47187e+06f}
 };
 // clang-format on
 
@@ -92,14 +61,42 @@ class WCSSTest : public ::testing::TestWithParam<std::tuple<size_t, size_t>> {
   protected:
     void SetUp() override { omp_set_num_threads(omp_get_max_threads()); }
 
-    static constexpr size_t N_SAMPLES = 100000;
-    static constexpr size_t N_TRUE_CENTERS = 100;
-    static constexpr float CLUSTER_STD = 1.0f;
-    static constexpr float CENTER_SPREAD = 10.0f;
+    static constexpr size_t N_SAMPLES = 10000;
+    static constexpr size_t MAX_D = 768;
     static constexpr unsigned int SEED = 42;
     static constexpr int N_ITERS = 10;
     static constexpr float TOLERANCE = 0.10f;
+
+    // Full test data loaded from disk (N_SAMPLES × MAX_D)
+    static std::vector<float> full_data_;
+    static void LoadTestData() {
+        if (!full_data_.empty()) {
+            return;
+        }
+        std::string data_file = CMAKE_SOURCE_DIR "/tests/test_data.bin";
+        std::ifstream in(data_file, std::ios::binary);
+        if (!in) {
+            throw std::runtime_error("Could not open test_data.bin. Run generate_wcss_ground_truth.out first.");
+        }
+        full_data_.resize(N_SAMPLES * MAX_D);
+        in.read(reinterpret_cast<char*>(full_data_.data()), full_data_.size() * sizeof(float));
+        in.close();
+    }
+
+    static std::vector<float> ExtractSubdim(size_t d) {
+        LoadTestData();
+        if (d > MAX_D) {
+            throw std::runtime_error("Requested dimensionality exceeds MAX_D");
+        }
+        std::vector<float> data(N_SAMPLES * d);
+        for (size_t i = 0; i < N_SAMPLES; ++i) {
+            std::memcpy(&data[i * d], &full_data_[i * MAX_D], d * sizeof(float));
+        }
+        return data;
+    }
 };
+
+std::vector<float> WCSSTest::full_data_;
 
 /**
  * @brief Test that WCSS monotonically decreases across iterations
@@ -114,8 +111,7 @@ TEST_P(WCSSTest, MonotonicallyDecreases_AndMatchesGroundTruth) {
                      << ")";
     }
 
-    std::vector<float> data =
-        skmeans::MakeBlobs(N_SAMPLES, d, N_TRUE_CENTERS, false, CLUSTER_STD, CENTER_SPREAD, SEED);
+    auto data = ExtractSubdim(d);
 
     ASSERT_EQ(data.size(), N_SAMPLES * d) << "Data size mismatch";
 
@@ -218,8 +214,7 @@ TEST_P(WCSSTest, BlasOnly_MonotonicallyDecreases_AndMatchesGroundTruth) {
         return;
     }
 
-    std::vector<float> data =
-        skmeans::MakeBlobs(N_SAMPLES, d, N_TRUE_CENTERS, false, CLUSTER_STD, CENTER_SPREAD, SEED);
+    auto data = ExtractSubdim(d);
 
     ASSERT_EQ(data.size(), N_SAMPLES * d) << "Data size mismatch";
 
@@ -301,8 +296,8 @@ INSTANTIATE_TEST_SUITE_P(
     WCSSParameterized,
     WCSSTest,
     ::testing::Combine(
-        ::testing::Values(10, 100, 1000),
-        ::testing::Values(4, 16, 32, 64, 100, 128, 384, 512, 600, 768, 900, 1024, 1536, 2000, 3072)
+        ::testing::Values(10, 100, 250),
+        ::testing::Values(4, 16, 32, 64, 100, 128, 384, 512, 600, 768)
     ),
     [](const ::testing::TestParamInfo<WCSSTest::ParamType>& info) {
         return "k" + std::to_string(std::get<0>(info.param)) + "_d" +

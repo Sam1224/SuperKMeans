@@ -24,10 +24,10 @@ High number of clusters? No problem! SuperKMeans scales like charm:
 
 > [!IMPORTANT]
 > **VLDB'26 reviewers**: For reproducibility of our results, check [BENCHMARKING.md](./BENCHMARKING.md).
-> **For other people**: This library is already usable! But, if you stumble upon this repository, contact lxkr@cwi.nl for more information!
+> **For other people**: This library is already usable! But, if you stumble upon this repository, contact lxkr@cwi.nl for more information! **Important:** We will soon move this repository to https://github.com/cwida/SuperKMeans.
 
 ## Why Super K-Means?
-- **10x faster clustering** than FAISS of large-scale high-dimensional vector embeddings (Cohere, OpenAI, Contriever, MXBAI, CLIP, MiniLM, GIST).
+- Up to **10x faster clustering** than FAISS of large-scale high-dimensional vector embeddings (Cohere, OpenAI, Contriever, MXBAI, CLIP, MiniLM, GIST).
 - Faster **without compromising clustering quality**.
 - Efficient in **CPUs** (ARM and x86) and **GPUs**.
 
