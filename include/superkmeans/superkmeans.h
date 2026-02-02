@@ -588,7 +588,7 @@ class SuperKMeans {
      */
     void SplitClusters() {
         _n_split = 0;
-        std::default_random_engine rng(_config.seed);
+        std::mt19937 rng(_config.seed);
         auto _horizontal_centroids_p = _horizontal_centroids.data();
         for (size_t ci = 0; ci < _n_clusters; ci++) {
             if (_cluster_sizes[ci] == 0) {
