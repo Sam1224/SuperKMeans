@@ -1,3 +1,5 @@
+#undef HAS_FFTW
+
 #include <cstring>
 #include <fstream>
 #include <iomanip>
